@@ -24,6 +24,7 @@
     <ProjectGuid>{0cae2849-5130-487a-9c0c-9b2fcab20842}</ProjectGuid>
     <RootNamespace>RTXApplication</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>Vulkan-Renderer</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
