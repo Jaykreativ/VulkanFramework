@@ -1,13 +1,5 @@
 #include "VulkanRenderer.h"
 
-#include <iostream>
-#include <chrono>
-
-#include "Application.h"
-#include "Vertex.h"
-#include "Shader.h"
-#include "glm.hpp"
-
 namespace vkRenderer {
     VkInstance instance;
     VkPhysicalDevice physicalDevice;
@@ -45,12 +37,13 @@ namespace vkRenderer {
 
     VkSemaphore semaphoreImageAvailable;
 
-    void createInstance(VkInstance& instance, std::vector<const char*>& enabledLayers, std::vector<const char*>& enabledExtensions) {
+    void createInstance(VkInstance& instance, std::vector<const char*>& enabledLayers, std::vector<const char*>& enabledExtensions, const char* applicationName) {
         VkApplicationInfo applicationInfo;
         applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
         applicationInfo.pNext = nullptr;
-        applicationInfo.pApplicationName = app::TITLE;
+        applicationInfo.pApplicationName = applicationName;
         applicationInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+        //TODO specify engine name
         applicationInfo.pEngineName = "RTXEngine";
         applicationInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
         applicationInfo.apiVersion = VK_API_VERSION_1_3;
@@ -612,9 +605,65 @@ namespace vkRenderer {
         vkCreateSemaphore(vkRenderer::device, &createInfo, nullptr, &vkRenderer::semaphoreImageAvailable);
     }
 
+    // Raytracing
+
+    void createBottomLevelAccelerationStructure() {
+
+    }
+
+    void createTopLevelAccelerationStructure(VkDevice &device, VkPhysicalDevice &physicalDevice, VkCommandPool &commandPool, VkQueue &queue, std::vector<VkAccelerationStructureInstanceKHR> &instances, VkAccelerationStructureKHR &accelerationStructure) {
+        uint32_t countInstances = static_cast<uint32_t>(instances.size());
+
+        VkBuffer instanceBuffer;
+        VkDeviceSize instanceBufferSize = countInstances * sizeof(VkAccelerationStructureInstanceKHR);
+        VkDeviceMemory instancesDeviceMemory;
+        vkUtils::createBuffer(device, physicalDevice, instanceBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, instancesDeviceMemory, instanceBuffer);
+        vkUtils::uploadBuffer(device, physicalDevice, commandPool, queue, instanceBufferSize, instances.data(), instanceBuffer);
+
+        VkBufferDeviceAddressInfo bufferDeviceAddressInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr };
+        bufferDeviceAddressInfo.buffer = instanceBuffer;
+        VkDeviceAddress instBufferAddr = vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo);
+
+        VkAccelerationStructureGeometryInstancesDataKHR instancesData{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR };
+        instancesData.data.deviceAddress = instBufferAddr;
+
+        VkAccelerationStructureGeometryKHR topASGeometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
+        topASGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+        topASGeometry.geometry.instances = instancesData;
+
+        VkAccelerationStructureBuildGeometryInfoKHR geometryInfo;
+        geometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+        geometryInfo.geometryCount = 1;
+        geometryInfo.pGeometries = &topASGeometry;
+        geometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+        geometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+        geometryInfo.srcAccelerationStructure = VK_NULL_HANDLE;
+
+
+        VkAccelerationStructureBuildSizesInfoKHR sizeInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
+        auto vkGetAccelerationStructureBuildSizesKHR = (PFN_vkGetAccelerationStructureBuildSizesKHR)vkGetInstanceProcAddr(vkRenderer::instance, "vkGetAccelerationStructureBuildSizesKHR");
+        vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &geometryInfo, &countInstances, &sizeInfo);
+
+        VkBuffer accelBuffer;
+        VkDeviceMemory accelDeviceMemory;
+        vkUtils::createBuffer(device, physicalDevice, sizeInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, accelDeviceMemory, accelBuffer);
+
+        VkAccelerationStructureCreateInfoKHR createInfo;
+        createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+        createInfo.pNext = nullptr;
+        createInfo.createFlags = 0;
+        createInfo.buffer = accelBuffer;
+        createInfo.offset = 0;
+        createInfo.size = sizeInfo.accelerationStructureSize;
+        createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+        createInfo.deviceAddress;
+
+        auto vkCreateAccelerationStructureKHR = (PFN_vkCreateAccelerationStructureKHR)vkGetInstanceProcAddr(vkRenderer::instance, "vkCreateAccelerationStructureKHR");
+        vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &accelerationStructure);
+    }
 }
 
-void initGLFW() {
+void initGLFW(GLFWwindow*& window, int width, int height, const char* title) {
     if (!glfwInit()) {
         throw std::runtime_error("Failed to initialize GLFW!");
     }
@@ -622,19 +671,19 @@ void initGLFW() {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    app::window = glfwCreateWindow(app::WIDTH, app::HEIGHT, app::TITLE, nullptr, nullptr);
+    window = glfwCreateWindow(width, height, title, nullptr, nullptr);
 
-    glfwShowWindow(app::window);
+    glfwShowWindow(window);
 }
 
-void terminateGLFW() {
-    glfwDestroyWindow(app::window);
+void terminateGLFW(GLFWwindow* window) {
+    glfwDestroyWindow(window);
     glfwTerminate();
 }
 
-void initVulkan() {
+void initVulkan(GLFWwindow* window, uint32_t width, uint32_t height, const char* applicationName, UniformBufferObject &ubo, Shader &vertShader, Shader &fragShader, std::vector<Vertex> &vertexArray, std::vector<uint32_t> &indexArray) {
     std::vector<const char*> enabledInstanceLayers = {
-#if DEBUG
+#if _DEBUG
         "VK_LAYER_KHRONOS_validation"
 #endif
     };
@@ -644,38 +693,39 @@ void initVulkan() {
     auto glfwExtensions = glfwGetRequiredInstanceExtensions(&amountOfRequiredGLFWExtensions);
     for (size_t i = 0; i < amountOfRequiredGLFWExtensions; i++) enabledInstanceExtensions.push_back(glfwExtensions[i]);
 
-    vkRenderer::createInstance(vkRenderer::instance, enabledInstanceLayers, enabledInstanceExtensions);// Create Instance
+    vkRenderer::createInstance(vkRenderer::instance, enabledInstanceLayers, enabledInstanceExtensions, applicationName);// Create Instance
     vkRenderer::physicalDevice = vkUtils::getAllPhysicalDevices(vkRenderer::instance)[VK_INDEX_OF_USED_PHYSICAL_DEVICE];
 
     VkPhysicalDeviceFeatures usedDeviceFeatures = {};
     std::vector<const char*> enabledDeviceLayers = {};
     std::vector<const char*> enabledDeviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
+        //"VK_KHR_acceleration_structure"
     };
     vkRenderer::createLogicalDevice(vkRenderer::physicalDevice, vkRenderer::device, enabledDeviceLayers, enabledDeviceExtensions, usedDeviceFeatures);// Create Logical Device
 
     vkRenderer::queueFamily = VK_PREFERED_QUEUE_FAMILY;//TODO civ
     for (size_t i = 0; i < vkRenderer::queues.size(); i++) vkGetDeviceQueue(vkRenderer::device, vkRenderer::queueFamily, i, &vkRenderer::queues[i]); // Get Queues from Device
 
-    vkRenderer::createGLFWWindowSurface(vkRenderer::instance, app::window, vkRenderer::surface); // Create and Check Surface
+    vkRenderer::createGLFWWindowSurface(vkRenderer::instance, window, vkRenderer::surface); // Create and Check Surface
     if (!vkUtils::checkSurfaceSupport(vkRenderer::physicalDevice, vkRenderer::surface)) throw std::runtime_error("Surface not Supported!");
-    vkRenderer::createViewport(app::WIDTH, app::HEIGHT, vkRenderer::viewport, vkRenderer::scissor);
+    vkRenderer::createViewport(width, height, vkRenderer::viewport, vkRenderer::scissor);
 
-    vkRenderer::createUniformBuffer(vkRenderer::device, vkRenderer::physicalDevice, app::ubo, vkRenderer::uniformBufferDeviceMemory, vkRenderer::uniformBuffer);
+    vkRenderer::createUniformBuffer(vkRenderer::device, vkRenderer::physicalDevice, ubo, vkRenderer::uniformBufferDeviceMemory, vkRenderer::uniformBuffer);
 
     vkRenderer::createDescriptorSetLayout(vkRenderer::device, vkRenderer::descriptorSetLayout);// Sets up Buffers and Images
     vkRenderer::createDescriptorPool(vkRenderer::device, vkRenderer::descriptorPool);
     vkRenderer::allocateDescriptorSets(vkRenderer::device, vkRenderer::descriptorPool, vkRenderer::descriptorSetLayout, vkRenderer::descriptorSet);
-    vkRenderer::initDescriptorSetBuffer(vkRenderer::device, vkRenderer::descriptorSet, vkRenderer::uniformBuffer, sizeof(app::ubo));
+    vkRenderer::initDescriptorSetBuffer(vkRenderer::device, vkRenderer::descriptorSet, vkRenderer::uniformBuffer, sizeof(ubo));
 
     vkRenderer::createRenderPass(vkRenderer::device, vkRenderer::renderPass);// Passes color and depth buffer
 
-#if DEBUG
+#if _DEBUG
     std::system("Shader\\compile-shader.bat");
 #endif
 
-    app::vertShader.init(vkRenderer::device);
-    app::fragShader.init(vkRenderer::device);
+    vertShader.init(vkRenderer::device);
+    fragShader.init(vkRenderer::device);
 
     vkRenderer::createPipeline(
         vkRenderer::device,
@@ -683,20 +733,20 @@ void initVulkan() {
         vkRenderer::scissor,
         vkRenderer::descriptorSetLayout,
         vkRenderer::renderPass,
-        app::vertShader.getModule(),
-        app::fragShader.getModule(),
+        vertShader.getModule(),
+        fragShader.getModule(),
         vkRenderer::pipelineLayout,
         vkRenderer::pipeline
     );
 
-    vkRenderer::createSwapchain(vkRenderer::device, vkRenderer::surface, VkExtent2D{ app::WIDTH, app::HEIGHT }, vkRenderer::swapchain); // Create Swapchain and its Image Views
+    vkRenderer::createSwapchain(vkRenderer::device, vkRenderer::surface, VkExtent2D{ width, height }, vkRenderer::swapchain); // Create Swapchain and its Image Views
     vkRenderer::createSwapchainImageViews(vkRenderer::device, vkRenderer::swapchain, vkRenderer::swapchainImages, vkRenderer::swapchainImageViews);
     vkRenderer::framebuffers.resize(vkRenderer::swapchainImages.size());
     for (int i = 0; i < vkRenderer::swapchainImages.size(); i++) {
         std::vector<VkImageView> framebufferAttachments = {
             vkRenderer::swapchainImageViews[i]
         };
-        vkRenderer::createFramebuffer(vkRenderer::device, vkRenderer::renderPass, framebufferAttachments, app::WIDTH, app::HEIGHT, vkRenderer::framebuffers[i]);
+        vkRenderer::createFramebuffer(vkRenderer::device, vkRenderer::renderPass, framebufferAttachments, width, height, vkRenderer::framebuffers[i]);
     }
 
     vkRenderer::createCommandPool(vkRenderer::device, vkRenderer::queueFamily, vkRenderer::commandPool);
@@ -704,17 +754,21 @@ void initVulkan() {
     vkRenderer::commandBuffers = new VkCommandBuffer[vkRenderer::commandBufferCount];
     vkUtils::allocateCommandBuffers(vkRenderer::device, vkRenderer::commandPool, vkRenderer::commandBufferCount, vkRenderer::commandBuffers);
 
-    vkRenderer::createVertexBuffer(vkRenderer::device, vkRenderer::physicalDevice, vkRenderer::commandPool, vkRenderer::queues[0], app::vertexArray, vkRenderer::vertexBufferDeviceMemory, vkRenderer::vertexBuffer);
-    vkRenderer::createIndexBuffer(vkRenderer::device, vkRenderer::physicalDevice, vkRenderer::commandPool, vkRenderer::queues[0], app::indexArray, vkRenderer::indexBufferDeviceMemory, vkRenderer::indexBuffer);
+    vkRenderer::createVertexBuffer(vkRenderer::device, vkRenderer::physicalDevice, vkRenderer::commandPool, vkRenderer::queues[0], vertexArray, vkRenderer::vertexBufferDeviceMemory, vkRenderer::vertexBuffer);
+    vkRenderer::createIndexBuffer(vkRenderer::device, vkRenderer::physicalDevice, vkRenderer::commandPool, vkRenderer::queues[0], indexArray, vkRenderer::indexBufferDeviceMemory, vkRenderer::indexBuffer);
+
+    std::vector<VkAccelerationStructureInstanceKHR> instances = {};
+    VkAccelerationStructureKHR accel;
+    vkRenderer::createTopLevelAccelerationStructure(vkRenderer::device, vkRenderer::physicalDevice, vkRenderer::commandPool, vkRenderer::queues[0], instances, accel);
 
     for (int i = 0; i < vkRenderer::swapchainImages.size(); i++) {
-        vkRenderer::recordCommandBuffer(vkRenderer::commandBuffers[i], vkRenderer::renderPass, vkRenderer::framebuffers[i], vkRenderer::viewport, vkRenderer::scissor, vkRenderer::pipeline, vkRenderer::vertexBuffer, vkRenderer::indexBuffer, app::indexArray.size(), vkRenderer::pipelineLayout, vkRenderer::descriptorSet);
+        vkRenderer::recordCommandBuffer(vkRenderer::commandBuffers[i], vkRenderer::renderPass, vkRenderer::framebuffers[i], vkRenderer::viewport, vkRenderer::scissor, vkRenderer::pipeline, vkRenderer::vertexBuffer, vkRenderer::indexBuffer, indexArray.size(), vkRenderer::pipelineLayout, vkRenderer::descriptorSet);
     }
 
     vkRenderer::createSemaphores();
 }
 
-void terminateVulkan() {
+void terminateVulkan(Shader &vertShader, Shader &fragShader) {
     for (VkQueue queue : vkRenderer::queues) {
         vkQueueWaitIdle(queue);
     }
@@ -727,8 +781,8 @@ void terminateVulkan() {
 
     vkDestroyPipelineLayout(vkRenderer::device, vkRenderer::pipelineLayout, nullptr);
     vkDestroyPipeline(vkRenderer::device, vkRenderer::pipeline, nullptr);
-    app::vertShader.destroy(vkRenderer::device);
-    app::fragShader.destroy(vkRenderer::device);
+    vertShader.destroy(vkRenderer::device);
+    fragShader.destroy(vkRenderer::device);
     vkDestroyRenderPass(vkRenderer::device, vkRenderer::renderPass, nullptr);
 
     vkDestroyDescriptorPool(vkRenderer::device, vkRenderer::descriptorPool, nullptr);
@@ -828,8 +882,8 @@ void printStats() {
 #endif
 }
 
-void updateUniforms() {
-    vkUtils::updateBuffer(vkRenderer::device, vkRenderer::uniformBufferDeviceMemory, sizeof(app::ubo), &app::ubo);
+void updateUniform(UniformBufferObject &ubo) {
+    vkUtils::updateBuffer(vkRenderer::device, vkRenderer::uniformBufferDeviceMemory, sizeof(ubo), &ubo);
 }
 
 void drawFrame() {

@@ -122,6 +122,8 @@ namespace vkUtils {
     }
 
     void createBuffer(VkDevice& device, VkPhysicalDevice& physicalDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceMemory& deviceMemory, VkBuffer& buffer) {
+        if (size <= 0) throw std::runtime_error("Trying to create buffer with size zero!");
+        
         VkBufferCreateInfo createInfo;
         createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         createInfo.pNext = nullptr;

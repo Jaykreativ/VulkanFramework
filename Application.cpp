@@ -27,8 +27,14 @@ namespace app {
 }
 
 int main() {
-    initGLFW();
-    initVulkan();
+#if _DEBUG
+    std::cout << "Mode: Debug\n";
+#else 
+    std::cout << "Mode: Release\n";
+#endif
+
+    initGLFW(app::window, app::WIDTH, app::HEIGHT, app::TITLE);
+    initVulkan(app::window, app::WIDTH, app::HEIGHT, app::TITLE, app::ubo, app::vertShader, app::fragShader, app::vertexArray, app::indexArray);
 
     printStats();
     
@@ -40,12 +46,12 @@ int main() {
 
         app::ubo.color = glm::vec4(a, 1, 0.5, 1);
 
-        updateUniforms();
+        updateUniform(app::ubo);
         drawFrame();
 
         glfwPollEvents();
     }
 
-    terminateVulkan();
-    terminateGLFW();
+    terminateVulkan(app::vertShader, app::fragShader);
+    terminateGLFW(app::window);
  }

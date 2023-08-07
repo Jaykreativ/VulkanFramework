@@ -1,12 +1,17 @@
 #pragma once
 
-#include "glm.hpp"
+#include <iostream>
+#include <chrono>
 
-#define DEBUG true
+#include "glm.hpp"
+#include "VulkanUtils.h"
+
+#include "Shader.h"
+#include "Vertex.h"
 
 #define PRINT_PHYSICAL_DEVICES true
 #define PRINT_QUEUE_FAMILIES  false
-#define PRINT_AVAILABLE_DEVICE_EXTENSIONS false
+#define PRINT_AVAILABLE_DEVICE_EXTENSIONS true
 #define PRINT_AVAILABLE_INSTANCE_EXTENSIONS false
 #define PRINT_AVAILABLE_INSTANCE_LAYERS false
 
@@ -19,17 +24,16 @@ struct UniformBufferObject {
     glm::vec4 color;
 };
 
+void initGLFW(GLFWwindow*& window, int width, int height, const char* title);
 
-void initGLFW();
+void terminateGLFW(GLFWwindow* window);
 
-void terminateGLFW();
+void initVulkan(GLFWwindow* window, uint32_t width, uint32_t height, const char* applicationName, UniformBufferObject &ubo, Shader &vertShader, Shader &fragShader, std::vector<Vertex> &vertexArray, std::vector<uint32_t> &indexArray);
 
-void initVulkan();
-
-void terminateVulkan();
+void terminateVulkan(Shader &vertShader, Shader &fragShader);
 
 void printStats();
 
-void updateUniforms();
+void updateUniform(UniformBufferObject &ubo);
 
 void drawFrame();
