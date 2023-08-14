@@ -32,9 +32,6 @@
     <ClInclude Include="Vertex.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
-    <ClInclude Include="Shader.h">
-      <Filter>Headerdateien</Filter>
-    </ClInclude>
     <ClInclude Include="VulkanUtils.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>

@@ -2,190 +2,217 @@
 
 namespace vkUtils {
 
-    std::vector<VkPhysicalDevice> getAllPhysicalDevices(VkInstance instance) {
-        uint32_t amountOfPhysicalDevices;
-        vkEnumeratePhysicalDevices(instance, &amountOfPhysicalDevices, nullptr);
-        std::vector<VkPhysicalDevice> physicalDevices(amountOfPhysicalDevices);
-        vkEnumeratePhysicalDevices(instance, &amountOfPhysicalDevices, physicalDevices.data());
-        return physicalDevices;
-    }
+	namespace queueHandler {
+		VkQueue* pQueues;
+		size_t countQueues;
 
-    int getQueueCount(VkPhysicalDevice physicalDevice, int familyIndex) {
-        uint32_t amountOfQueueFamilies;
-        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &amountOfQueueFamilies, nullptr);
-        if (familyIndex > amountOfQueueFamilies) throw std::logic_error("Family Index out of range");
-        VkQueueFamilyProperties* queueFamilyProperties = new VkQueueFamilyProperties[amountOfQueueFamilies];
-        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &amountOfQueueFamilies, queueFamilyProperties);
+		bool m_isInit = false;
+		bool isInitialized() {
+			return m_isInit;
+		}
 
-        int queueCount = queueFamilyProperties[familyIndex].queueCount;
+		void init(std::vector<VkQueue>& queues) {
+			if (m_isInit || queues.size() <= 0) return;
+			m_isInit = true;
 
-        delete[] queueFamilyProperties;
+			pQueues = queues.data();
+			countQueues = queues.size();
+		}
 
-        return queueCount;
-    }
+		uint32_t currentQueueId{ 0 };
+		VkQueue& getQueue() {
+			if (!m_isInit) throw std::runtime_error("Not yet initialized");
+			if (currentQueueId >= countQueues) currentQueueId = 0;
+			currentQueueId++;
+			return pQueues[currentQueueId-1];
+			//return pQueues[0];
+		}
+	}
 
-    bool checkSurfaceSupport(const VkPhysicalDevice& physicalDevice, VkSurfaceKHR& surface) {
-        VkBool32 surfaceSupport = false;
-        VkResult result = vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, 0, surface, &surfaceSupport);
-        VK_ASSERT(result);
+	std::vector<VkPhysicalDevice> getAllPhysicalDevices(VkInstance instance) {
+		uint32_t amountOfPhysicalDevices;
+		vkEnumeratePhysicalDevices(instance, &amountOfPhysicalDevices, nullptr);
+		std::vector<VkPhysicalDevice> physicalDevices(amountOfPhysicalDevices);
+		vkEnumeratePhysicalDevices(instance, &amountOfPhysicalDevices, physicalDevices.data());
+		return physicalDevices;
+	}
 
-        return surfaceSupport;
-    }
+	int getQueueCount(VkPhysicalDevice physicalDevice, int familyIndex) {
+		uint32_t amountOfQueueFamilies;
+		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &amountOfQueueFamilies, nullptr);
+		if (familyIndex > amountOfQueueFamilies) throw std::logic_error("Family Index out of range");
+		VkQueueFamilyProperties* queueFamilyProperties = new VkQueueFamilyProperties[amountOfQueueFamilies];
+		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &amountOfQueueFamilies, queueFamilyProperties);
 
-    std::vector<VkPresentModeKHR> getSupportedSurfacePresentModes(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& surface) {
-        uint32_t amountOfValidSurfacePresentModes;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &amountOfValidSurfacePresentModes, nullptr);
-        std::vector<VkPresentModeKHR> validSurfacePresentModes(amountOfValidSurfacePresentModes);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &amountOfValidSurfacePresentModes, validSurfacePresentModes.data());
+		int queueCount = queueFamilyProperties[familyIndex].queueCount;
 
-        return validSurfacePresentModes;
-    }
+		delete[] queueFamilyProperties;
 
-    std::vector<char> readFile(const std::string& filename) {
-        std::ifstream file(filename, std::ios::binary | std::ios::ate);
+		return queueCount;
+	}
 
-        if (file) {
-            size_t fileSize = (size_t)file.tellg();
-            std::vector<char> fileBuffer(fileSize);
-            file.seekg(0);
-            file.read(fileBuffer.data(), fileSize);
-            file.close();
-            return fileBuffer;
-        }
-        else {
-            throw std::runtime_error("Failed to open file");
-        }
-    }
+	bool checkSurfaceSupport(const VkPhysicalDevice& physicalDevice, VkSurfaceKHR& surface) {
+		VkBool32 surfaceSupport = false;
+		VkResult result = vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, 0, surface, &surfaceSupport);
+		VK_ASSERT(result);
 
-    uint32_t findMemoryTypeIndex(VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
-        VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties;
-        vkGetPhysicalDeviceMemoryProperties(physicalDevice, &physicalDeviceMemoryProperties);
-        for (int i = 0; i < physicalDeviceMemoryProperties.memoryTypeCount; i++) {
-            if (typeFilter & (1 << i) && (physicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-                return i;
-            }
-        }
+		return surfaceSupport;
+	}
 
-        throw std::runtime_error("Found no correct memory type!");
-    }
+	std::vector<VkPresentModeKHR> getSupportedSurfacePresentModes(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& surface) {
+		uint32_t amountOfValidSurfacePresentModes;
+		vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &amountOfValidSurfacePresentModes, nullptr);
+		std::vector<VkPresentModeKHR> validSurfacePresentModes(amountOfValidSurfacePresentModes);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &amountOfValidSurfacePresentModes, validSurfacePresentModes.data());
 
-    //Allocates given amount of command buffers at the position of the pointer
-    void allocateCommandBuffers(VkDevice& device, VkCommandPool& commandPool, uint32_t commandBufferCount, VkCommandBuffer* commandBuffers) {
-        VkCommandBufferAllocateInfo allocateInfo;
-        allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocateInfo.pNext = nullptr;
-        allocateInfo.commandPool = commandPool;
-        allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocateInfo.commandBufferCount = commandBufferCount;
+		return validSurfacePresentModes;
+	}
 
-        VkResult result = vkAllocateCommandBuffers(device, &allocateInfo, commandBuffers);
-        VK_ASSERT(result);
-    }
+	std::vector<char> readFile(const char* filename) {
+		std::ifstream file(filename, std::ios::binary | std::ios::ate);
 
-    void beginCommandBuffer(VkCommandBuffer& commandBuffer, VkCommandBufferUsageFlags usageFlags) {
-        VkCommandBufferBeginInfo beginInfo;
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.pNext = nullptr;
-        beginInfo.flags = usageFlags;
-        beginInfo.pInheritanceInfo = nullptr;
+		if (file) {
+			size_t fileSize = (size_t)file.tellg();
+			std::vector<char> fileBuffer(fileSize);
+			file.seekg(0);
+			file.read(fileBuffer.data(), fileSize);
+			file.close();
+			return fileBuffer;
+		}
+		else {
+			std::cerr << "Failed to open file: " << filename << "\n";
+			throw std::runtime_error("Failed to open file!");
+		}
+	}
 
-        VkResult result = vkBeginCommandBuffer(commandBuffer, &beginInfo);
-        VK_ASSERT(result);
-    }
+	uint32_t findMemoryTypeIndex(VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+		VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties;
+		vkGetPhysicalDeviceMemoryProperties(physicalDevice, &physicalDeviceMemoryProperties);
+		for (int i = 0; i < physicalDeviceMemoryProperties.memoryTypeCount; i++) {
+			if (typeFilter & (1 << i) && (physicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+				return i;
+			}
+		}
 
-    void endCommandBuffer(VkCommandBuffer& commandBuffer) {
-        VkResult result = vkEndCommandBuffer(commandBuffer);
-        VK_ASSERT(result);
-    }
+		throw std::runtime_error("Found no correct memory type!");
+	}
 
-    void submitCommandBuffer(VkCommandBuffer& commandBuffer, VkQueue& queue) {
-        VkSubmitInfo submitInfo;
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.pNext = nullptr;
-        submitInfo.waitSemaphoreCount = 0;
-        submitInfo.pWaitSemaphores = nullptr;
-        submitInfo.pWaitDstStageMask = nullptr;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffer;
-        submitInfo.signalSemaphoreCount = 0;
-        submitInfo.pSignalSemaphores = nullptr;
+	//Allocates given amount of command buffers at the position of the pointer
+	void allocateCommandBuffers(VkDevice& device, VkCommandPool& commandPool, uint32_t commandBufferCount, VkCommandBuffer* commandBuffers) {
+		VkCommandBufferAllocateInfo allocateInfo;
+		allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocateInfo.pNext = nullptr;
+		allocateInfo.commandPool = commandPool;
+		allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocateInfo.commandBufferCount = commandBufferCount;
 
-        VkResult result = vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
-        VK_ASSERT(result);
+		VkResult result = vkAllocateCommandBuffers(device, &allocateInfo, commandBuffers);
+		VK_ASSERT(result);
+	}
 
-        result = vkQueueWaitIdle(queue);
-        VK_ASSERT(result);
-    }
+	void beginCommandBuffer(VkCommandBuffer& commandBuffer, VkCommandBufferUsageFlags usageFlags) {
+		VkCommandBufferBeginInfo beginInfo;
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.pNext = nullptr;
+		beginInfo.flags = usageFlags;
+		beginInfo.pInheritanceInfo = nullptr;
 
-    void freeCommandBuffers(VkDevice& device, VkCommandPool& commandPool, uint32_t commandBufferCount, VkCommandBuffer* commandBuffers) {
-        vkFreeCommandBuffers(device, commandPool, commandBufferCount, commandBuffers);
-    }
+		VkResult result = vkBeginCommandBuffer(commandBuffer, &beginInfo);
+		VK_ASSERT(result);
+	}
 
-    void createBuffer(VkDevice& device, VkPhysicalDevice& physicalDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceMemory& deviceMemory, VkBuffer& buffer) {
-        if (size <= 0) throw std::runtime_error("Trying to create buffer with size zero!");
-        
-        VkBufferCreateInfo createInfo;
-        createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        createInfo.pNext = nullptr;
-        createInfo.flags = 0;
-        createInfo.size = size;
-        createInfo.usage = usage;
-        createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        createInfo.queueFamilyIndexCount = 0;// needed only when VK_SHARING_MODE_CONCURRENT
-        createInfo.pQueueFamilyIndices = nullptr;
+	void endCommandBuffer(VkCommandBuffer& commandBuffer) {
+		vkEndCommandBuffer(commandBuffer);
+	}
 
-        VkResult result = vkCreateBuffer(device, &createInfo, nullptr, &buffer);
-        VK_ASSERT(result);
+	void submitCommandBuffer(VkCommandBuffer& commandBuffer, VkQueue& queue) {
+		VkSubmitInfo submitInfo;
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.pNext = nullptr;
+		submitInfo.waitSemaphoreCount = 0;
+		submitInfo.pWaitSemaphores = nullptr;
+		submitInfo.pWaitDstStageMask = nullptr;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &commandBuffer;
+		submitInfo.signalSemaphoreCount = 0;
+		submitInfo.pSignalSemaphores = nullptr;
 
-        VkMemoryRequirements memoryRequirements;
-        vkGetBufferMemoryRequirements(device, buffer, &memoryRequirements);
+		VkResult result = vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+		VK_ASSERT(result);
 
-        VkMemoryAllocateInfo allocateInfo;
-        allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocateInfo.pNext = nullptr;
-        allocateInfo.allocationSize = memoryRequirements.size;
-        allocateInfo.memoryTypeIndex = findMemoryTypeIndex(physicalDevice, memoryRequirements.memoryTypeBits, memoryPropertyFlags);
+		result = vkQueueWaitIdle(queue);
+		VK_ASSERT(result);
+	}
 
-        result = vkAllocateMemory(device, &allocateInfo, nullptr, &deviceMemory);
-        VK_ASSERT(result);
+	void freeCommandBuffers(VkDevice& device, VkCommandPool& commandPool, uint32_t commandBufferCount, VkCommandBuffer* commandBuffers) {
+		vkFreeCommandBuffers(device, commandPool, commandBufferCount, commandBuffers);
+	}
 
-        vkBindBufferMemory(device, buffer, deviceMemory, 0);
-    }
+	void createBuffer(VkDevice& device, VkPhysicalDevice& physicalDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceMemory& deviceMemory, VkBuffer& buffer) {
+		if (size <= 0) throw std::runtime_error("Trying to create buffer with size zero!");
+		
+		VkBufferCreateInfo createInfo;
+		createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		createInfo.pNext = nullptr;
+		createInfo.flags = 0;
+		createInfo.size = size;
+		createInfo.usage = usage;
+		createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		createInfo.queueFamilyIndexCount = 0;// needed only when VK_SHARING_MODE_CONCURRENT
+		createInfo.pQueueFamilyIndices = nullptr;
 
-    void copyBuffer(VkDevice& device, VkCommandPool& commandPool, VkQueue& queue, VkBuffer& src, VkBuffer& dst, VkDeviceSize size) {
-        VkCommandBuffer commandBuffer;
-        allocateCommandBuffers(device, commandPool, 1, &commandBuffer);
-        beginCommandBuffer(commandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+		VkResult result = vkCreateBuffer(device, &createInfo, nullptr, &buffer);
+		VK_ASSERT(result);
 
-        VkBufferCopy bufferCopy;
-        bufferCopy.srcOffset = 0;
-        bufferCopy.dstOffset = 0;
-        bufferCopy.size = size;
-        vkCmdCopyBuffer(commandBuffer, src, dst, 1, &bufferCopy);
+		VkMemoryRequirements memoryRequirements;
+		vkGetBufferMemoryRequirements(device, buffer, &memoryRequirements);
 
-        endCommandBuffer(commandBuffer);
-        submitCommandBuffer(commandBuffer, queue);
-        freeCommandBuffers(device, commandPool, 1, &commandBuffer);
-    }
+		VkMemoryAllocateInfo allocateInfo;
+		allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocateInfo.pNext = nullptr;
+		allocateInfo.allocationSize = memoryRequirements.size;
+		allocateInfo.memoryTypeIndex = findMemoryTypeIndex(physicalDevice, memoryRequirements.memoryTypeBits, memoryPropertyFlags);
 
-    void updateBuffer(VkDevice& device, VkDeviceMemory& bufferMemory, VkDeviceSize bufferSize, const void* data) {
-        void* rawData;
-        vkMapMemory(device, bufferMemory, 0, bufferSize, 0, &rawData);
-        memcpy(rawData, data, bufferSize);
-        vkUnmapMemory(device, bufferMemory);
-    }
-    
-    void uploadBuffer(VkDevice& device, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue, VkDeviceSize bufferSize, void* data, VkBuffer& buffer) {
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
-        createBuffer(device, physicalDevice, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBufferMemory, stagingBuffer);
+		result = vkAllocateMemory(device, &allocateInfo, nullptr, &deviceMemory);
+		VK_ASSERT(result);
 
-        updateBuffer(device, stagingBufferMemory, bufferSize, data);
+		vkBindBufferMemory(device, buffer, deviceMemory, 0);
+	}
 
-        copyBuffer(device, commandPool, queue, stagingBuffer, buffer, bufferSize);
+	void copyBuffer(VkDevice& device, VkCommandPool& commandPool, VkQueue& queue, VkBuffer& src, VkBuffer& dst, VkDeviceSize size) {
+		VkCommandBuffer commandBuffer;
+		allocateCommandBuffers(device, commandPool, 1, &commandBuffer);
+		beginCommandBuffer(commandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-        vkDestroyBuffer(device, stagingBuffer, nullptr);
-        vkFreeMemory(device, stagingBufferMemory, nullptr);
-    }
+		VkBufferCopy bufferCopy;
+		bufferCopy.srcOffset = 0;
+		bufferCopy.dstOffset = 0;
+		bufferCopy.size = size;
+		vkCmdCopyBuffer(commandBuffer, src, dst, 1, &bufferCopy);
+
+		endCommandBuffer(commandBuffer);
+		submitCommandBuffer(commandBuffer, queue);
+		freeCommandBuffers(device, commandPool, 1, &commandBuffer);
+	}
+
+	void updateBuffer(VkDevice& device, VkDeviceMemory& bufferMemory, VkDeviceSize bufferSize, const void* data) {
+		void* rawData;
+		vkMapMemory(device, bufferMemory, 0, bufferSize, 0, &rawData);
+		memcpy(rawData, data, bufferSize);
+		vkUnmapMemory(device, bufferMemory);
+	}
+	
+	void uploadBuffer(VkDevice& device, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue, VkDeviceSize bufferSize, void* data, VkBuffer& buffer) {
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingBufferMemory;
+		createBuffer(device, physicalDevice, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBufferMemory, stagingBuffer);
+
+		updateBuffer(device, stagingBufferMemory, bufferSize, data);
+
+		copyBuffer(device, commandPool, queue, stagingBuffer, buffer, bufferSize);
+
+		vkDestroyBuffer(device, stagingBuffer, nullptr);
+		vkFreeMemory(device, stagingBufferMemory, nullptr);
+	}
 };
 
