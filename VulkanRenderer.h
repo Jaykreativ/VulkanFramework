@@ -203,6 +203,7 @@ namespace vkRenderer {
 	class RenderPass {
 	public:
 		RenderPass();
+		RenderPass(bool generateDefault);
 		~RenderPass();
 
 		void init();
@@ -223,6 +224,48 @@ namespace vkRenderer {
 		std::vector<VkAttachmentReference*> m_attachmentReferencePtrs;
 		std::vector<VkSubpassDescription> m_subpassDescriptions;
 		std::vector<VkSubpassDependency> m_subpassDependencies;
+	};
+
+	class Framebuffer {
+	public:
+		Framebuffer();
+		~Framebuffer();
+
+		void init();
+
+		void addAttachment(VkImageView attachment) {
+			m_attachments.push_back(attachment);
+		}
+		void delAttachment(int index) {
+			m_attachments.erase(m_attachments.begin() + index);
+		}
+
+		void setRenderPass(VkRenderPass renderPass) {
+			m_renderPass = renderPass;
+		}
+		void setRenderPass(vkRenderer::RenderPass& renderPass){
+			setRenderPass(renderPass.getVkRenderPass());
+		}
+
+		void setWidth(uint32_t width) {
+			m_width = width;
+		}
+		void setHeight(uint32_t height) {
+			m_height = height;
+		}
+
+		VkFramebuffer getVkFramebuffer() {
+			return m_framebuffer;
+		}
+
+	private:
+		bool m_isInit = false;
+
+		VkFramebuffer m_framebuffer;
+
+		VkRenderPass m_renderPass;
+		std::vector<VkImageView> m_attachments;
+		uint32_t m_width, m_height;
 	};
 
 	class Pipeline {
@@ -254,6 +297,13 @@ namespace vkRenderer {
 		void addScissor(const VkRect2D& scissor);
 		void delScissor(int index);
 
+		void setRenderPass(VkRenderPass renderPass) {
+			m_renderPass = renderPass;
+		}
+		void setRenderPass(vkRenderer::RenderPass& renderPass) {
+			setRenderPass(renderPass.getVkRenderPass());
+		}
+
 		const VkPipeline& getVkPipeline() {
 			return m_pipeline;
 		}
@@ -268,6 +318,7 @@ namespace vkRenderer {
 		VkPipeline       m_pipeline;
 		VkPipelineLayout m_pipelineLayout;
 
+		VkRenderPass m_renderPass;
 		std::vector<VkDescriptorSetLayout> m_setLayouts;
 		std::vector<VkPipelineShaderStageCreateInfo> m_shaderStages;
 		std::vector<VkVertexInputBindingDescription> m_vertexInputBindingDescriptions;

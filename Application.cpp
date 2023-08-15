@@ -63,15 +63,16 @@ int main() {
 	
 #if Test
 	/*Initialization*/
-	vkRenderer::RenderPass renderPass = vkRenderer::RenderPass();
+	vkRenderer::RenderPass renderPass = vkRenderer::RenderPass(true);
 	renderPass.init();
 
-	VkFramebuffer* framebuffers = new VkFramebuffer[vkRenderer::getSwapchainImages().size()];
+	vkRenderer::Framebuffer* framebuffers = new vkRenderer::Framebuffer[vkRenderer::getSwapchainImages().size()];
 	for (int i = 0; i < vkRenderer::getSwapchainImages().size(); i++) {
-		std::vector<VkImageView> attachments = {
-			vkRenderer::getSwapchainImageViews()[i]
-		};
-		vkRenderer::createFramebuffer(renderPass.getVkRenderPassRef(), attachments, app::WIDTH, app::HEIGHT, framebuffers[i]);
+		framebuffers[i].addAttachment(vkRenderer::getSwapchainImageViews()[i]);
+		framebuffers[i].setRenderPass(renderPass);
+		framebuffers[i].setWidth(app::WIDTH);
+		framebuffers[i].setHeight(app::HEIGHT);
+		framebuffers[i].init();
 	}
 
 	vkRenderer::DescriptorPool descriptorPool = vkRenderer::DescriptorPool();
@@ -104,6 +105,9 @@ int main() {
 		vertShader.setStage(VK_SHADER_STAGE_VERTEX_BIT);
 		fragShader.setStage(VK_SHADER_STAGE_FRAGMENT_BIT);
 
+		vertShader.init();
+		fragShader.init();
+
 		pipeline.addShader(vertShader.getShaderStage());
 		pipeline.addShader(fragShader.getShaderStage());
 
@@ -128,6 +132,9 @@ int main() {
 		//Add the descriptorSetLayout for the pipelineLayout
 		pipeline.addDescriptorSetLayout(descriptorPool.getDescriptorSetLayout(0));
 
+		//Set renderPass which is compatible with the one the pipeline is used in
+		pipeline.setRenderPass(renderPass);
+
 		//Initialize pipeline
 		pipeline.init();
 	}
@@ -148,7 +155,7 @@ int main() {
 
 	//Record CommandBuffers
 	for (int i = 0; i < vkRenderer::getSwapchainImages().size(); i++) {
-		VkFramebuffer& framebuffer = framebuffers[i];
+		const VkFramebuffer& framebuffer = framebuffers[i].getVkFramebuffer();
 		vkRenderer::CommandBuffer& commandBuffer = commandBuffers[i];
 		commandBuffer.begin(VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT);
 
@@ -251,7 +258,7 @@ int main() {
 	descriptorPool.~DescriptorPool();
 
 	for (int i = 0; i < vkRenderer::getSwapchainImages().size(); i++) {
-		vkRenderer::destroyFramebuffer(framebuffers[i]);
+		framebuffers[i].~Framebuffer();
 	}
 
 	renderPass.~RenderPass();

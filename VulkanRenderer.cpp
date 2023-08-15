@@ -701,48 +701,52 @@ namespace vkRenderer {
 	}
 
 	RenderPass::RenderPass() {
-		VkAttachmentDescription colorAttachmentDescription;
-		colorAttachmentDescription.flags = 0;
-		colorAttachmentDescription.format = VK_USED_SCREENCOLOR_FORMAT;
-		colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-		colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	}
+	RenderPass::RenderPass(bool generateDefault) {
+		if (generateDefault) {
+			VkAttachmentDescription colorAttachmentDescription;
+			colorAttachmentDescription.flags = 0;
+			colorAttachmentDescription.format = VK_USED_SCREENCOLOR_FORMAT;
+			colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+			colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-		VkAttachmentReference* colorAttachmentReference = new VkAttachmentReference;
-		colorAttachmentReference->attachment = 0;
-		colorAttachmentReference->layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+			VkAttachmentReference* colorAttachmentReference = new VkAttachmentReference;
+			colorAttachmentReference->attachment = 0;
+			colorAttachmentReference->layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
 
-		m_attachmentDescriptions.push_back(colorAttachmentDescription);
-		m_attachmentReferencePtrs.push_back(colorAttachmentReference);
+			m_attachmentDescriptions.push_back(colorAttachmentDescription);
+			m_attachmentReferencePtrs.push_back(colorAttachmentReference);
 
-		VkSubpassDescription subpassDescription;
-		subpassDescription.flags = 0;
-		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpassDescription.inputAttachmentCount = 0;
-		subpassDescription.pInputAttachments = nullptr;
-		subpassDescription.colorAttachmentCount = 1;
-		subpassDescription.pColorAttachments = colorAttachmentReference;
-		subpassDescription.pResolveAttachments = nullptr;
-		subpassDescription.pDepthStencilAttachment = nullptr;
-		subpassDescription.preserveAttachmentCount = 0;
-		subpassDescription.pPreserveAttachments = nullptr;
+			VkSubpassDescription subpassDescription;
+			subpassDescription.flags = 0;
+			subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			subpassDescription.inputAttachmentCount = 0;
+			subpassDescription.pInputAttachments = nullptr;
+			subpassDescription.colorAttachmentCount = 1;
+			subpassDescription.pColorAttachments = colorAttachmentReference;
+			subpassDescription.pResolveAttachments = nullptr;
+			subpassDescription.pDepthStencilAttachment = nullptr;
+			subpassDescription.preserveAttachmentCount = 0;
+			subpassDescription.pPreserveAttachments = nullptr;
 
-		m_subpassDescriptions.push_back(subpassDescription);
+			m_subpassDescriptions.push_back(subpassDescription);
 
-		VkSubpassDependency subpassDependency;
-		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		subpassDependency.dstSubpass = 0;
-		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		subpassDependency.srcAccessMask = 0;
-		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-		subpassDependency.dependencyFlags = 0;
+			VkSubpassDependency subpassDependency;
+			subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+			subpassDependency.dstSubpass = 0;
+			subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			subpassDependency.srcAccessMask = 0;
+			subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			subpassDependency.dependencyFlags = 0;
 
-		m_subpassDependencies.push_back(subpassDependency);
+			m_subpassDependencies.push_back(subpassDependency);
+		}
 	}
 
 	RenderPass::~RenderPass() {
@@ -772,6 +776,35 @@ namespace vkRenderer {
 		createInfo.pDependencies = m_subpassDependencies.data();
 
 		vkCreateRenderPass(vkRenderer::device, &createInfo, nullptr, &m_renderPass);
+	}
+
+	Framebuffer::Framebuffer() {
+
+	}
+
+	Framebuffer::~Framebuffer() {
+		if (!m_isInit) return;
+		m_isInit = false;
+
+		vkDestroyFramebuffer(vkRenderer::device, m_framebuffer, nullptr);
+	}
+
+	void Framebuffer::init() {
+		if (m_isInit) return;
+		m_isInit = true;
+
+		VkFramebufferCreateInfo createInfo;
+		createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		createInfo.pNext = nullptr;
+		createInfo.flags = 0;
+		createInfo.renderPass = m_renderPass;
+		createInfo.attachmentCount = m_attachments.size();
+		createInfo.pAttachments = m_attachments.data();
+		createInfo.width = m_width;
+		createInfo.height = m_height;
+		createInfo.layers = 1;
+
+		vkCreateFramebuffer(vkRenderer::device, &createInfo, nullptr, &m_framebuffer);
 	}
 
 	Pipeline::Pipeline() {
@@ -913,7 +946,7 @@ namespace vkRenderer {
 		createInfo.pColorBlendState = &m_colorBlendStateCreateInfo;
 		createInfo.pDynamicState = &m_dynamicStateCreateInfo;
 		createInfo.layout = m_pipelineLayout;
-		createInfo.renderPass = renderPass;
+		createInfo.renderPass = m_renderPass;
 		createInfo.subpass = 0;
 		createInfo.basePipelineHandle = VK_NULL_HANDLE;
 		createInfo.basePipelineIndex = -1;
@@ -1337,66 +1370,16 @@ void initVulkan(GLFWwindow* window, uint32_t width, uint32_t height, const char*
 
 	vkRenderer::createGLFWWindowSurface(vkRenderer::instance, window, vkRenderer::surface); // Create and Check Surface
 	if (!vkUtils::checkSurfaceSupport(vkRenderer::physicalDevice, vkRenderer::surface)) throw std::runtime_error("Surface not Supported!");
-	vkRenderer::createViewport(width, height, vkRenderer::viewport, vkRenderer::scissor);
 
-	vkRenderer::createUniformBuffer(vkRenderer::device, vkRenderer::physicalDevice, ubo, vkRenderer::uniformBufferDeviceMemory, vkRenderer::uniformBuffer);
-
-	vkRenderer::createDescriptorSetLayout(vkRenderer::device, vkRenderer::descriptorSetLayout);// Sets up Buffers and Images
-	vkRenderer::createDescriptorPool(vkRenderer::device, vkRenderer::descriptorPool);
-	vkRenderer::allocateDescriptorSets(vkRenderer::device, vkRenderer::descriptorPool, vkRenderer::descriptorSetLayout, vkRenderer::descriptorSet);
-	vkRenderer::initDescriptorSetBuffer(vkRenderer::device, vkRenderer::descriptorSet, vkRenderer::uniformBuffer, sizeof(ubo));
-
-	vkRenderer::createDefaultRenderPass(vkRenderer::renderPass);// Passes color and depth buffer
-
+	//TODO Make compile automatic in shader class
 #if _DEBUG
 	std::system("Shader\\compile-shader.bat");
 #endif
 
-	vertShader.init();
-	fragShader.init();
-
-
-	vkRenderer::createPipeline(
-		vkRenderer::device,
-		vkRenderer::viewport,
-		vkRenderer::scissor,
-		vkRenderer::descriptorSetLayout,
-		vkRenderer::renderPass,
-		vertShader.getModule(),
-		fragShader.getModule(),
-		vkRenderer::pipelineLayout,
-		vkRenderer::pipeline
-	);
-
 	vkRenderer::createSwapchain(vkRenderer::device, vkRenderer::surface, VkExtent2D{ width, height }, vkRenderer::swapchain); // Create Swapchain and its Image Views
 	vkRenderer::createSwapchainImageViews(vkRenderer::device, vkRenderer::swapchain, vkRenderer::swapchainImages, vkRenderer::swapchainImageViews);
-	vkRenderer::framebuffers.resize(vkRenderer::swapchainImages.size());
-	for (int i = 0; i < vkRenderer::swapchainImages.size(); i++) {
-		std::vector<VkImageView> framebufferAttachments = {
-			vkRenderer::swapchainImageViews[i]
-		};
-		vkRenderer::createFramebuffer(vkRenderer::renderPass, framebufferAttachments, width, height, vkRenderer::framebuffers[i]);
-	}
 
 	vkRenderer::createCommandPool(vkRenderer::device, vkRenderer::queueFamily, vkRenderer::commandPool);
-	vkRenderer::commandBufferCount = vkRenderer::swapchainImages.size();
-	vkRenderer::commandBuffers = new VkCommandBuffer[vkRenderer::commandBufferCount];
-	vkUtils::allocateCommandBuffers(vkRenderer::device, vkRenderer::commandPool, vkRenderer::commandBufferCount, vkRenderer::commandBuffers);
-
-	vkRenderer::createVertexBuffer(vertexArray, vkRenderer::vertexbufferDeviceMemory, vkRenderer::vertexBuffer);
-	vkRenderer::createIndexBuffer(vkRenderer::device, vkRenderer::physicalDevice, vkRenderer::commandPool, vkUtils::queueHandler::getQueue(), indexArray, vkRenderer::indexBufferDeviceMemory, vkRenderer::indexBuffer);
-
-	/*
-	std::vector<VkAccelerationStructureInstanceKHR> instances = {};
-	VkAccelerationStructureKHR accel;
-	vkRenderer::createTopLevelAccelerationStructure(vkRenderer::device, vkRenderer::physicalDevice, vkRenderer::commandPool, vkRenderer::queues[0], instances, accel);
-	*/
-
-	for (int i = 0; i < vkRenderer::swapchainImages.size(); i++) {
-		vkRenderer::recordCommandBuffer(vkRenderer::commandBuffers[i], vkRenderer::renderPass, vkRenderer::framebuffers[i], vkRenderer::viewport, vkRenderer::scissor, vkRenderer::pipeline, vkRenderer::vertexBuffer, vkRenderer::indexBuffer, indexArray.size(), vkRenderer::pipelineLayout, vkRenderer::descriptorSet);
-	}
-
-	vkRenderer::createSemaphores();
 }
 
 void terminateVulkan(vkRenderer::Shader &vertShader, vkRenderer::Shader &fragShader) {
@@ -1404,28 +1387,8 @@ void terminateVulkan(vkRenderer::Shader &vertShader, vkRenderer::Shader &fragSha
 		vkQueueWaitIdle(queue);
 	}
 
-	vkDestroySemaphore(vkRenderer::device, vkRenderer::semaphoreImageAvailable, nullptr);
-
-	vkFreeCommandBuffers(vkRenderer::device, vkRenderer::commandPool, vkRenderer::commandBufferCount, vkRenderer::commandBuffers);
-	delete[] vkRenderer::commandBuffers;
 	vkDestroyCommandPool(vkRenderer::device, vkRenderer::commandPool, nullptr);
 
-	vkDestroyPipelineLayout(vkRenderer::device, vkRenderer::pipelineLayout, nullptr);
-	vkDestroyPipeline(vkRenderer::device, vkRenderer::pipeline, nullptr);
-	vkDestroyRenderPass(vkRenderer::device, vkRenderer::renderPass, nullptr);
-
-	vkDestroyDescriptorPool(vkRenderer::device, vkRenderer::descriptorPool, nullptr);
-	vkDestroyDescriptorSetLayout(vkRenderer::device, vkRenderer::descriptorSetLayout, nullptr);
-
-	vkFreeMemory(vkRenderer::device, vkRenderer::vertexbufferDeviceMemory, nullptr);
-	vkDestroyBuffer(vkRenderer::device, vkRenderer::vertexBuffer, nullptr);
-	vkFreeMemory(vkRenderer::device, vkRenderer::indexBufferDeviceMemory, nullptr);
-	vkDestroyBuffer(vkRenderer::device, vkRenderer::indexBuffer, nullptr);
-
-	vkFreeMemory(vkRenderer::device, vkRenderer::uniformBufferDeviceMemory, nullptr);
-	vkDestroyBuffer(vkRenderer::device, vkRenderer::uniformBuffer, nullptr);
-
-	for (VkFramebuffer framebuffer : vkRenderer::framebuffers) vkDestroyFramebuffer(vkRenderer::device, framebuffer, nullptr);
 	for (VkImageView imageView : vkRenderer::swapchainImageViews) vkDestroyImageView(vkRenderer::device, imageView, nullptr);
 	vkDestroySwapchainKHR(vkRenderer::device, vkRenderer::swapchain, nullptr);
 
