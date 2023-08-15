@@ -21,6 +21,7 @@
 
 struct UniformBufferObject {
 	glm::vec4 color;
+	glm::mat4 transform;
 };
 
 namespace vkRenderer {
@@ -197,6 +198,25 @@ namespace vkRenderer {
 		VkShaderModule m_module;
 
 		VkPipelineShaderStageCreateInfo m_shaderStage{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0};
+	};
+
+	class RenderPass {
+	public:
+		RenderPass();
+		~RenderPass();
+
+		void init();
+
+		const VkRenderPass& getVkRenderPass() {
+			return m_renderPass;
+		}
+
+	private:
+		VkRenderPass m_renderPass;
+
+		std::vector<VkAttachmentDescription> m_attachmentDescriptions;
+		std::vector<VkSubpassDescription> m_subpassDescriptions;
+		std::vector<VkSubpassDependency> m_subpassDependencies;
 	};
 
 	class Pipeline {

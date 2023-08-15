@@ -6,15 +6,16 @@
 #endif
 
 #include "Application.h"
+#include "gtc/matrix_transform.hpp"
 
 #include <chrono>
 
 namespace app {
 	GLFWwindow* window;
 
-	const uint32_t WIDTH = 1000;
-	const uint32_t HEIGHT = 600;
-	const char* TITLE = "RTX Application";
+	const uint32_t WIDTH = 1920;
+	const uint32_t HEIGHT = 1061;
+	const char* TITLE = "Vulkan Application";
 
 	std::vector<Vertex> vertexArray = {
 		Vertex({ 0, -0.5f, 0 }),
@@ -199,6 +200,7 @@ int main() {
 		a += 0.5*deltaTime;
 
 		app::ubo.color = glm::vec4(a, 1, 0.5, 1);
+		app::ubo.transform = glm::rotate(glm::mat4(1.0f), a * glm::radians(360.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
 		void* data;  uniformBuffer.map(&data);
 		memcpy(data, &app::ubo, sizeof(UniformBufferObject));
