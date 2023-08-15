@@ -712,9 +712,12 @@ namespace vkRenderer {
 		colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-		VkAttachmentReference colorAttachmentReference;
-		colorAttachmentReference.attachment = 0;
-		colorAttachmentReference.layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+		VkAttachmentReference* colorAttachmentReference = new VkAttachmentReference;
+		colorAttachmentReference->attachment = 0;
+		colorAttachmentReference->layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+
+		m_attachmentDescriptions.push_back(colorAttachmentDescription);
+		m_attachmentReferencePtrs.push_back(colorAttachmentReference);
 
 		VkSubpassDescription subpassDescription;
 		subpassDescription.flags = 0;
@@ -722,11 +725,13 @@ namespace vkRenderer {
 		subpassDescription.inputAttachmentCount = 0;
 		subpassDescription.pInputAttachments = nullptr;
 		subpassDescription.colorAttachmentCount = 1;
-		subpassDescription.pColorAttachments = &colorAttachmentReference;
+		subpassDescription.pColorAttachments = colorAttachmentReference;
 		subpassDescription.pResolveAttachments = nullptr;
 		subpassDescription.pDepthStencilAttachment = nullptr;
 		subpassDescription.preserveAttachmentCount = 0;
 		subpassDescription.pPreserveAttachments = nullptr;
+
+		m_subpassDescriptions.push_back(subpassDescription);
 
 		VkSubpassDependency subpassDependency;
 		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -736,9 +741,25 @@ namespace vkRenderer {
 		subpassDependency.srcAccessMask = 0;
 		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 		subpassDependency.dependencyFlags = 0;
+
+		m_subpassDependencies.push_back(subpassDependency);
+	}
+
+	RenderPass::~RenderPass() {
+		for (VkAttachmentReference* ptr : m_attachmentReferencePtrs) {
+			delete ptr;
+		}
+
+		if (!m_isInit) return;
+		m_isInit = false;
+
+		vkDestroyRenderPass(vkRenderer::device, m_renderPass, nullptr);
 	}
 
 	void RenderPass::init() {
+		if (m_isInit) return;
+		m_isInit = true;
+
 		VkRenderPassCreateInfo createInfo;
 		createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 		createInfo.pNext = nullptr;
@@ -1278,8 +1299,6 @@ void initGLFW(GLFWwindow*& window, int width, int height, const char* title) {
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 	glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 	window = glfwCreateWindow(width, height, title, nullptr, nullptr);
-
-	glfwSetWindowMonitor(window, glfwGetPrimaryMonitor(), 0, 0, width, height, 60); 
 
 	glfwShowWindow(window);
 }

@@ -11,7 +11,7 @@ vec3 hsl2rgb( vec3 c ) {
 }
 
 void main() {
-    float dist = sqrt(pow(gl_FragCoord.x-960, 2) + pow(gl_FragCoord.y-530.5, 2));
+    float dist = sqrt(pow(gl_FragCoord.x-960, 2) + pow(gl_FragCoord.y-520, 2));
     vec3 color = fragColor.rgb;
     color.r += dist/600;
     color.b = sin(dist/7.5+fragColor.r*6.1);

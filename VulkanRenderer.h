@@ -210,11 +210,17 @@ namespace vkRenderer {
 		const VkRenderPass& getVkRenderPass() {
 			return m_renderPass;
 		}
+		VkRenderPass& getVkRenderPassRef() {
+			return m_renderPass;
+		}
 
 	private:
+		bool m_isInit = false;
+
 		VkRenderPass m_renderPass;
 
 		std::vector<VkAttachmentDescription> m_attachmentDescriptions;
+		std::vector<VkAttachmentReference*> m_attachmentReferencePtrs;
 		std::vector<VkSubpassDescription> m_subpassDescriptions;
 		std::vector<VkSubpassDependency> m_subpassDependencies;
 	};

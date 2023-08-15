@@ -63,15 +63,15 @@ int main() {
 	
 #if Test
 	/*Initialization*/
-	VkRenderPass renderPass;//Create RenderPass
-	vkRenderer::createDefaultRenderPass(renderPass);
+	vkRenderer::RenderPass renderPass = vkRenderer::RenderPass();
+	renderPass.init();
 
 	VkFramebuffer* framebuffers = new VkFramebuffer[vkRenderer::getSwapchainImages().size()];
 	for (int i = 0; i < vkRenderer::getSwapchainImages().size(); i++) {
 		std::vector<VkImageView> attachments = {
 			vkRenderer::getSwapchainImageViews()[i]
 		};
-		vkRenderer::createFramebuffer(renderPass, attachments, app::WIDTH, app::HEIGHT, framebuffers[i]);
+		vkRenderer::createFramebuffer(renderPass.getVkRenderPassRef(), attachments, app::WIDTH, app::HEIGHT, framebuffers[i]);
 	}
 
 	vkRenderer::DescriptorPool descriptorPool = vkRenderer::DescriptorPool();
@@ -155,7 +155,7 @@ int main() {
 		VkRenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderPassBeginInfo.pNext = nullptr;
-		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.renderPass = renderPass.getVkRenderPass();
 		renderPassBeginInfo.framebuffer = framebuffer;
 		renderPassBeginInfo.renderArea.offset = { 0,0};
 		renderPassBeginInfo.renderArea.extent = { app::WIDTH, app::HEIGHT };
@@ -254,7 +254,7 @@ int main() {
 		vkRenderer::destroyFramebuffer(framebuffers[i]);
 	}
 
-	vkRenderer::destroyRenderPass(renderPass);
+	renderPass.~RenderPass();
 
 	terminateVulkan(vertShader, fragShader);
 	terminateGLFW(app::window);
