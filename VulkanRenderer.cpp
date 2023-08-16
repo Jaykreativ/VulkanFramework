@@ -434,20 +434,24 @@ namespace vkRenderer {
 	}
 
 	void CommandBuffer::submit() {
+		VkQueue queue;
+		submit(&queue);
+		vkQueueWaitIdle(queue);
+	}
+	void CommandBuffer::submit(VkQueue* queue) {
 		VkSubmitInfo submitInfo;
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.pNext = nullptr;
-		submitInfo.waitSemaphoreCount = 0;
-		submitInfo.pWaitSemaphores = nullptr;
-		submitInfo.pWaitDstStageMask = nullptr;
+		submitInfo.waitSemaphoreCount = m_waitSemaphores.size();
+		submitInfo.pWaitSemaphores = m_waitSemaphores.data();
+		submitInfo.pWaitDstStageMask = m_waitDstStageMasks.data();
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &m_commandBuffer;
 		submitInfo.signalSemaphoreCount = 0;
 		submitInfo.pSignalSemaphores = nullptr;
 
-		VkQueue queue = vkUtils::queueHandler::getQueue();
-		vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
-		vkQueueWaitIdle(queue);
+		*queue = vkUtils::queueHandler::getQueue();
+		vkQueueSubmit(*queue, 1, &submitInfo, VK_NULL_HANDLE);
 	}
 
 	Buffer::~Buffer() {

@@ -22,6 +22,8 @@
 struct UniformBufferObject {
 	glm::vec4 color;
 	glm::mat4 transform;
+	glm::mat4 view;
+	glm::mat4 perspective;
 };
 
 namespace vkRenderer {
@@ -61,6 +63,16 @@ namespace vkRenderer {
 		void end();
 
 		void submit();
+		void submit(VkQueue* queue);
+
+		void addWaitSemaphore(VkSemaphore waitSemaphore, VkPipelineStageFlags waitDstStageMask) {
+			m_waitSemaphores.push_back(waitSemaphore);
+			m_waitDstStageMasks.push_back(waitDstStageMask);
+		}
+		void delWaitSemaphore(int index) {
+			m_waitSemaphores.erase(m_waitSemaphores.begin() + index);
+			m_waitDstStageMasks.erase(m_waitDstStageMasks.begin() + index);
+		}
 
 		const VkCommandBuffer& getVkCommandBuffer() {
 			return m_commandBuffer;
@@ -68,6 +80,9 @@ namespace vkRenderer {
 
 	private:
 		VkCommandBuffer m_commandBuffer;
+
+		std::vector<VkSemaphore> m_waitSemaphores;
+		std::vector<VkPipelineStageFlags> m_waitDstStageMasks;
 	};
 
 	class Buffer {

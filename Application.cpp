@@ -13,21 +13,29 @@
 namespace app {
 	GLFWwindow* window;
 
-	const uint32_t WIDTH = 1920;
-	const uint32_t HEIGHT = 1061;
+	const uint32_t WIDTH = 1000;
+	const uint32_t HEIGHT = 600;
 	const char* TITLE = "Vulkan Application";
 
 	std::vector<Vertex> vertexArray = {
-		Vertex({ 0, -0.5f, 0 }),
-		Vertex({ -0.5f, 0.5f, 0 }),
-		Vertex({ 0.5f, 0.5f, 0 })
+		Vertex({0.5f, -0.5f, -0.5f}),
+		Vertex({-0.5f, -0.5f, -0.5f}),
+		Vertex({-0.5f, 0.5f, -0.5f}),
+		Vertex({0.5f, 0.5f, -0.5f}),
+		Vertex({0, 0, 0.5f})
 	};
 	std::vector<uint32_t> indexArray = {
-		0, 1, 2
+		0, 1, 2,
+		0, 2, 3,
+		1, 0, 4,
+		2, 1, 4,
+		3, 2, 4,
+		0, 3, 4
 	};
 
 	UniformBufferObject ubo = {
-		{1, 1, 1, 1} //Color
+		{1, 1, 1, 1},
+		glm::mat4(1)
 	};
 }
 
@@ -147,10 +155,14 @@ int main() {
 	indexBuffer.init(); indexBuffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	indexBuffer.uploadData(app::indexArray.size() * sizeof(uint32_t), app::indexArray.data());
 
+	VkSemaphore imageAvailable;
+	vkRenderer::createSemaphore(&imageAvailable);
+
 	uint32_t countCommandBuffers = vkRenderer::getSwapchainImages().size();//Allocate CommandBuffers for recording
 	vkRenderer::CommandBuffer* commandBuffers = new vkRenderer::CommandBuffer[countCommandBuffers];
 	for (int i = 0; i < vkRenderer::getSwapchainImages().size(); i++) {
 		commandBuffers[i].allocate();
+		commandBuffers[i].addWaitSemaphore(imageAvailable, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 	}
 
 	//Record CommandBuffers
@@ -179,7 +191,7 @@ int main() {
 
 		vkCmdBindPipeline(commandBuffer.getVkCommandBuffer(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.getVkPipeline());
 
-		VkDeviceSize offsets[] = { 0 };
+		uint64_t offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffer.getVkCommandBuffer(), 0, 1, &vertexBuffer.getVkBuffer(), offsets);
 		vkCmdBindIndexBuffer(commandBuffer.getVkCommandBuffer(), indexBuffer.getVkBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
@@ -191,9 +203,6 @@ int main() {
 
 		commandBuffer.end();
 	}
-
-	VkSemaphore imageAvailable;
-	vkRenderer::createSemaphore(&imageAvailable);
 #endif
 
 	//printStats();
@@ -208,6 +217,8 @@ int main() {
 
 		app::ubo.color = glm::vec4(a, 1, 0.5, 1);
 		app::ubo.transform = glm::rotate(glm::mat4(1.0f), a * glm::radians(360.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		app::ubo.view = glm::lookAt(glm::vec3(0, 1, 0.5f), glm::vec3(0, 0, 0), glm::vec3(0, 0, 1));
+		app::ubo.perspective = glm::perspective<float>(30, app::WIDTH / static_cast<float>(app::HEIGHT), 0.1f, 100);
 
 		void* data;  uniformBuffer.map(&data);
 		memcpy(data, &app::ubo, sizeof(UniformBufferObject));
@@ -216,21 +227,8 @@ int main() {
 		uint32_t imageIndex = 0;
 		vkRenderer::acquireNextImage(imageAvailable, VK_NULL_HANDLE, &imageIndex);
 
-		VkSubmitInfo submitInfo;
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.pNext = nullptr;
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = &imageAvailable;
-		VkPipelineStageFlags waitDstStageMask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-		submitInfo.pWaitDstStageMask = waitDstStageMask;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &commandBuffers[imageIndex].getVkCommandBuffer();
-		submitInfo.signalSemaphoreCount = 0;
-		submitInfo.pSignalSemaphores = nullptr;
-
-		VkQueue queue = vkUtils::queueHandler::getQueue();
-		VkResult result = vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
-		VK_ASSERT(result);
+		VkQueue queue;
+		commandBuffers[imageIndex].submit(&queue);
 
 		vkRenderer::queuePresent(queue, imageIndex);
 
