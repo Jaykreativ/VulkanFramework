@@ -2,6 +2,7 @@
 #extension GL_KHR_vulkan_glsl : enable
 
 layout(location=0) in vec4 fragColor;
+layout(location=1) in vec3 fragPos;
 
 layout(location=0) out vec4 outColor;
 
@@ -11,9 +12,11 @@ vec3 hsl2rgb( vec3 c ) {
 }
 
 void main() {
-    float dist = sqrt(pow(gl_FragCoord.x-500, 2) + pow(gl_FragCoord.y-300, 2));
+    //float dist = sqrt(pow(gl_FragCoord.x-viewport.x/2, 2) + pow(gl_FragCoord.y-viewport.y/2, 2)); 
+    /*float dist = length(fragPos);
     vec3 color = fragColor.rgb;
-    color.r += dist/600;
+    color.r += dist;
     color.b = sin(dist/7.5+fragColor.r*6.1);
-    outColor = vec4(hsl2rgb(color), 1);
+    outColor = vec4(hsl2rgb(color), 1);*/
+    outColor = vec4(fragPos, 1);
 }

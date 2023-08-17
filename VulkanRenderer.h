@@ -24,6 +24,7 @@ struct UniformBufferObject {
 	glm::mat4 transform;
 	glm::mat4 view;
 	glm::mat4 perspective;
+	glm::vec2 viewport;
 };
 
 namespace vkRenderer {
@@ -31,7 +32,10 @@ namespace vkRenderer {
 
 	void queuePresent(VkQueue queue, uint32_t imageIndex);
 
+	void deviceWaitIdle();
 	void allQueuesWaitIdle();
+
+	void updateSwapchain(uint32_t width, uint32_t height);
 
 	//getter
 	const std::vector<VkImage>& getSwapchainImages();
@@ -87,6 +91,7 @@ namespace vkRenderer {
 
 	class Buffer {
 	public:
+		Buffer() {}
 		Buffer(VkDeviceSize size, VkBufferUsageFlags usage)
 			: m_size(size), m_usage(usage)
 		{}
@@ -183,7 +188,7 @@ namespace vkRenderer {
 
 	class Shader {
 	public:
-		Shader(std::string path);
+		Shader();
 		~Shader();
 
 		void init();
@@ -209,8 +214,8 @@ namespace vkRenderer {
 	private:
 		bool m_isInit = false;
 
-		std::string m_path;
-		VkShaderModule m_module;
+		std::string m_path = "";
+		VkShaderModule m_module = VK_NULL_HANDLE;
 
 		VkPipelineShaderStageCreateInfo m_shaderStage{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0};
 	};
@@ -312,6 +317,13 @@ namespace vkRenderer {
 		void addScissor(const VkRect2D& scissor);
 		void delScissor(int index);
 
+		void addDynamicState(VkDynamicState dynamicState) {
+			m_dynamicStates.push_back(dynamicState);
+		}
+		void delDynamicState(int index) {
+			m_dynamicStates.erase(m_dynamicStates.begin() + index);
+		}
+
 		void setRenderPass(VkRenderPass renderPass) {
 			m_renderPass = renderPass;
 		}
@@ -340,6 +352,7 @@ namespace vkRenderer {
 		std::vector<VkVertexInputAttributeDescription> m_vertexInputAttributeDescriptions;
 		std::vector<VkViewport> m_viewports;
 		std::vector<VkRect2D> m_scissors;
+		std::vector<VkDynamicState> m_dynamicStates;
 
 		VkPipelineVertexInputStateCreateInfo   m_vertexInputStateCreateInfo;
 		VkPipelineInputAssemblyStateCreateInfo m_inputAssemblyStateCreateInfo;
@@ -357,11 +370,7 @@ namespace vkRenderer {
 	void createVertexBuffer(std::vector<Vertex>& vertexArray, VkDeviceMemory& deviceMemory, VkBuffer& vertexBuffer);
 }
 
-void initGLFW(GLFWwindow*& window, int width, int height, const char* title);
-
-void terminateGLFW(GLFWwindow* window);
-
-void initVulkan(GLFWwindow* window, uint32_t width, uint32_t height, const char* applicationName, UniformBufferObject &ubo, vkRenderer::Shader &vertShader, vkRenderer::Shader &fragShader, std::vector<Vertex> &vertexArray, std::vector<uint32_t> &indexArray);
+void initVulkan(GLFWwindow* window, uint32_t width, uint32_t height, const char* applicationName);
 
 void terminateVulkan(vkRenderer::Shader &vertShader, vkRenderer::Shader &fragShader);
 
