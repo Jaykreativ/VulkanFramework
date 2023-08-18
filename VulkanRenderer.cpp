@@ -152,7 +152,7 @@ namespace vkRenderer {
 			createImageView(device, swapchainImages[i], VK_USED_SCREENCOLOR_FORMAT, VK_IMAGE_ASPECT_COLOR_BIT, imageViews[i]);
 		}
 	}
-
+	
 	void createSemaphore(VkSemaphore* semaphore) {
 		VkSemaphoreCreateInfo createInfo{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, nullptr, 0};
 		vkCreateSemaphore(vkRenderer::device, &createInfo, nullptr, semaphore);
@@ -309,6 +309,27 @@ namespace vkRenderer {
 
 		commandBuffer.end();
 		commandBuffer.submit();
+	}
+
+	void Image::init() {
+		VkImageCreateInfo createInfo;
+		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		createInfo.pNext = nullptr;
+		createInfo.flags = 0;
+		createInfo.imageType = m_imageType;
+		createInfo.format = m_imageFormat;
+		createInfo.extent = m_imageExtent;
+		createInfo.mipLevels = ;
+		createInfo.arrayLayers = ;
+		createInfo.samples = ;
+		createInfo.tiling = ;
+		createInfo.usage = ;
+		createInfo.sharingMode = ;
+		createInfo.queueFamilyIndexCount = ;
+		createInfo.pQueueFamilyIndices = ;
+		createInfo.initialLayout = ;
+
+		vkCreateImage(vkRenderer::device, );
 	}
 
 	DescriptorPool::~DescriptorPool() {

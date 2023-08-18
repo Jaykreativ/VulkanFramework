@@ -47,7 +47,7 @@ namespace app {
 	vkRenderer::Shader vertShader;
 	vkRenderer::Shader fragShader;
 
-	vkRenderer::RenderPass renderPass = vkRenderer::RenderPass(true);
+	vkRenderer::RenderPass renderPass;
 
 	vkRenderer::Framebuffer* framebuffers;
 
@@ -181,12 +181,81 @@ int main() {
 	
 #if Test
 	/*Initialization*/
+	{
+		VkAttachmentDescription colorAttachmentDescription;
+		colorAttachmentDescription.flags = 0;
+		colorAttachmentDescription.format = VK_USED_SCREENCOLOR_FORMAT;
+		colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+		colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-	app::renderPass.init();
+		VkAttachmentDescription depthStencilAttachmentDescription;
+		depthStencilAttachmentDescription.flags = 0;
+		depthStencilAttachmentDescription.format = VK_USED_SCREENCOLOR_FORMAT;
+		depthStencilAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+		depthStencilAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthStencilAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthStencilAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthStencilAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthStencilAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		depthStencilAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		VkAttachmentReference* colorAttachmentReference;
+		VkAttachmentReference* depthStencilAttachmentReference;
+		{
+		VkAttachmentReference tmp1;
+		tmp1.attachment = 0;
+		tmp1.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		colorAttachmentReference = &tmp1;
+
+		VkAttachmentReference tmp2;
+		tmp2.attachment = 0;
+		tmp2.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		depthStencilAttachmentReference = &tmp2;
+
+		app::renderPass.addAttachmentDescription(colorAttachmentDescription);
+		app::renderPass.addAttachmentDescription(depthStencilAttachmentDescription);
+		app::renderPass.addAttachmentReference(&colorAttachmentReference);
+		app::renderPass.addAttachmentReference(&depthStencilAttachmentReference);
+		}
+
+		VkSubpassDescription description;
+		description.flags = 0;
+		description.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		description.inputAttachmentCount = 0;
+		description.pInputAttachments = nullptr;
+		description.colorAttachmentCount = 1;
+		description.pColorAttachments = colorAttachmentReference;
+		description.pResolveAttachments = nullptr;
+		description.pDepthStencilAttachment = depthStencilAttachmentReference;
+		description.preserveAttachmentCount = 0;
+		description.pPreserveAttachments = nullptr;
+
+		app::renderPass.addSubpassDescription(description);
+
+		VkSubpassDependency dependency;
+		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		dependency.dstSubpass = 0;
+		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependency.srcAccessMask = 0;
+		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		dependency.dependencyFlags = 0;
+
+		app::renderPass.addSubpassDependency(dependency);
+
+		app::renderPass.init();
+	}
+
 
 	app::framebuffers = new vkRenderer::Framebuffer[vkRenderer::getSwapchainImages().size()];
 	for (int i = 0; i < vkRenderer::getSwapchainImages().size(); i++) {
 		app::framebuffers[i].addAttachment(vkRenderer::getSwapchainImageViews()[i]);
+		app::framebuffers[i].addAttachment();
 		app::framebuffers[i].setRenderPass(app::renderPass);
 		app::framebuffers[i].setWidth(app::width);
 		app::framebuffers[i].setHeight(app::height);

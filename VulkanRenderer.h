@@ -136,6 +136,26 @@ namespace vkRenderer {
 		VkDeviceMemory m_deviceMemory;
 	};
 
+	class Image {
+	public:
+		Image() {}
+		~Image() {}
+
+		void init();
+
+		VkImage getVkImage();
+		VkImageView getVkImageView();
+
+	private:
+		VkImage m_image = VK_NULL_HANDLE;
+		VkImageView m_imageView = VK_NULL_HANDLE;
+
+		VkImageType m_imageType = VK_IMAGE_TYPE_2D;
+		VkFormat m_imageFormat = VK_USED_SCREENCOLOR_FORMAT;
+		VkExtent3D m_imageExtent = { 0, 0, 0 };
+		uint32_t m_imageMipLevelCount = 1;
+	};
+	
 	struct Descriptor {//TODO descriptor count
 		VkDescriptorType              type;
 		VkShaderStageFlags            stages;
@@ -227,6 +247,28 @@ namespace vkRenderer {
 		~RenderPass();
 
 		void init();
+
+		void addAttachmentDescription(const VkAttachmentDescription& description) {
+			m_attachmentDescriptions.push_back(description);
+		}
+
+		void addAttachmentReference(VkAttachmentReference** referencePtr) {
+			VkAttachmentReference* attachmentReference = new VkAttachmentReference;
+			attachmentReference->attachment = (*referencePtr)->attachment;
+			attachmentReference->layout = (*referencePtr)->layout;
+
+			*referencePtr = attachmentReference;
+
+			m_attachmentReferencePtrs.push_back(attachmentReference);
+		}
+
+		void addSubpassDescription(const VkSubpassDescription& description) {
+			m_subpassDescriptions.push_back(description);
+		}
+
+		void addSubpassDependency(const VkSubpassDependency& dependency) {
+			m_subpassDependencies.push_back(dependency);
+		}
 
 		const VkRenderPass& getVkRenderPass() {
 			return m_renderPass;
