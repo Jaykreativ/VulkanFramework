@@ -47,6 +47,8 @@ namespace app {
 	vkRenderer::Shader vertShader;
 	vkRenderer::Shader fragShader;
 
+	vkRenderer::Image depthImage;
+
 	vkRenderer::RenderPass renderPass;
 
 	vkRenderer::Framebuffer* framebuffers;
@@ -182,6 +184,14 @@ int main() {
 #if Test
 	/*Initialization*/
 	{
+		app::depthImage.setFormat(VK_FORMAT_D24_UNORM_S8_UINT);
+		app::depthImage.setAspect(VK_IMAGE_ASPECT_DEPTH_BIT);
+		app::depthImage.setUsage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+		app::depthImage.setLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+		app::depthImage.setWidth(app::width);
+		app::depthImage.setHeight(app::height);
+		app::depthImage.init();
+
 		VkAttachmentDescription colorAttachmentDescription;
 		colorAttachmentDescription.flags = 0;
 		colorAttachmentDescription.format = VK_USED_SCREENCOLOR_FORMAT;
@@ -255,7 +265,7 @@ int main() {
 	app::framebuffers = new vkRenderer::Framebuffer[vkRenderer::getSwapchainImages().size()];
 	for (int i = 0; i < vkRenderer::getSwapchainImages().size(); i++) {
 		app::framebuffers[i].addAttachment(vkRenderer::getSwapchainImageViews()[i]);
-		app::framebuffers[i].addAttachment();
+		app::framebuffers[i].addAttachment(app::depthImage.getVkImageView());
 		app::framebuffers[i].setRenderPass(app::renderPass);
 		app::framebuffers[i].setWidth(app::width);
 		app::framebuffers[i].setHeight(app::height);
@@ -325,6 +335,8 @@ int main() {
 
 		app::pipeline.addDynamicState(VK_DYNAMIC_STATE_VIEWPORT);
 		app::pipeline.addDynamicState(VK_DYNAMIC_STATE_SCISSOR);
+
+		app::pipeline.enableDepthTest();
 
 		//Initialize pipeline
 		app::pipeline.init();

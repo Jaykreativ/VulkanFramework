@@ -311,25 +311,51 @@ namespace vkRenderer {
 		commandBuffer.submit();
 	}
 
+	Image::~Image(){
+		vkDestroyImage(vkRenderer::device, m_image, nullptr);
+		vkDestroyImageView(vkRenderer::device, m_imageView, nullptr);
+	}
+
 	void Image::init() {
 		VkImageCreateInfo createInfo;
 		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		createInfo.pNext = nullptr;
 		createInfo.flags = 0;
-		createInfo.imageType = m_imageType;
-		createInfo.format = m_imageFormat;
-		createInfo.extent = m_imageExtent;
-		createInfo.mipLevels = ;
-		createInfo.arrayLayers = ;
-		createInfo.samples = ;
-		createInfo.tiling = ;
-		createInfo.usage = ;
-		createInfo.sharingMode = ;
-		createInfo.queueFamilyIndexCount = ;
-		createInfo.pQueueFamilyIndices = ;
-		createInfo.initialLayout = ;
+		createInfo.imageType = m_type;
+		createInfo.format = m_format;
+		createInfo.extent = m_extent;
+		createInfo.mipLevels = m_mipLevelCount;
+		createInfo.arrayLayers = 1;
+		createInfo.samples = m_samples;
+		createInfo.tiling = m_tiling;
+		createInfo.usage = m_usage;
+		createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		createInfo.queueFamilyIndexCount = 0;
+		createInfo.pQueueFamilyIndices = nullptr;
+		createInfo.initialLayout =	VK_IMAGE_LAYOUT_PREINITIALIZED;
 
-		vkCreateImage(vkRenderer::device, );
+		vkCreateImage(vkRenderer::device, &createInfo, nullptr, &m_image);
+		
+		VkImageViewCreateInfo viewCreateInfo;
+		viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		viewCreateInfo.pNext = nullptr;
+		viewCreateInfo.flags = 0;
+		viewCreateInfo.image = m_image;
+		viewCreateInfo.viewType = m_viewType;
+		viewCreateInfo.format = m_format;
+		viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+		viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_B;
+		viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_G;
+		viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+		viewCreateInfo.subresourceRange.aspectMask = m_aspect;
+		viewCreateInfo.subresourceRange.baseMipLevel = 0;
+		viewCreateInfo.subresourceRange.levelCount = m_mipLevelCount;
+		viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+		viewCreateInfo.subresourceRange.levelCount = 1;
+
+		vkCreateImageView(vkRenderer::device, &viewCreateInfo, nullptr, &m_imageView);
+
+
 	}
 
 	DescriptorPool::~DescriptorPool() {

@@ -19,14 +19,6 @@
 #define VK_PREFERED_AMOUNT_OF_QUEUES 4
 #define VK_USED_SCREENCOLOR_FORMAT VK_FORMAT_B8G8R8A8_UNORM //TODO civ
 
-struct UniformBufferObject {
-	glm::vec4 color;
-	glm::mat4 transform;
-	glm::mat4 view;
-	glm::mat4 perspective;
-	glm::vec2 viewport;
-};
-
 namespace vkRenderer {
 	void acquireNextImage(VkSemaphore semaphore, VkFence fence, uint32_t* pImageIndex);
 
@@ -139,21 +131,69 @@ namespace vkRenderer {
 	class Image {
 	public:
 		Image() {}
-		~Image() {}
+		~Image();
 
 		void init();
 
-		VkImage getVkImage();
-		VkImageView getVkImageView();
+		void setType(VkImageType type) {
+			m_type = type;
+		}
+
+		void setFormat(VkFormat format) {
+			m_format = format;
+		}
+
+		void setAspect(VkImageAspectFlags aspect) {
+			m_aspect = aspect;
+		}
+
+		void setUsage(VkImageUsageFlags usage) {
+			m_usage = usage;
+		}
+
+		void setLayout(VkImageLayout layout) {
+			m_layout = layout;
+		}
+
+		void setExtent(uint32_t width, uint32_t height, uint32_t depth) {
+			m_extent = { width, height, depth };
+		}
+		void setExtent(VkExtent3D extent) {
+			m_extent = extent;
+		}
+
+		void setWidth(uint32_t width) {
+			m_extent.width = width;
+		}
+		void setHeight(uint32_t height) {
+			m_extent.height = height;
+		}
+		void setDepth(uint32_t depth) {
+			m_extent.depth = depth;
+		}
+
+		const VkImage& getVkImage() {
+			return m_image;
+		}
+		const VkImageView& getVkImageView() {
+			return m_imageView;
+		}
 
 	private:
 		VkImage m_image = VK_NULL_HANDLE;
 		VkImageView m_imageView = VK_NULL_HANDLE;
 
-		VkImageType m_imageType = VK_IMAGE_TYPE_2D;
-		VkFormat m_imageFormat = VK_USED_SCREENCOLOR_FORMAT;
-		VkExtent3D m_imageExtent = { 0, 0, 0 };
-		uint32_t m_imageMipLevelCount = 1;
+		VkImageType m_type = VK_IMAGE_TYPE_2D;
+		VkImageViewType m_viewType = VK_IMAGE_VIEW_TYPE_2D;
+		VkFormat m_format = VK_USED_SCREENCOLOR_FORMAT;
+		VkImageAspectFlags m_aspect = VK_IMAGE_ASPECT_NONE;
+		VkExtent3D m_extent = { 1, 1, 1 };
+		uint32_t m_mipLevelCount = 1;
+		VkSampleCountFlagBits m_samples = VK_SAMPLE_COUNT_1_BIT;
+		VkImageTiling m_tiling = VK_IMAGE_TILING_OPTIMAL;
+		VkImageUsageFlags m_usage;
+		VkImageLayout m_layout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+
 	};
 	
 	struct Descriptor {//TODO descriptor count
@@ -373,6 +413,15 @@ namespace vkRenderer {
 			setRenderPass(renderPass.getVkRenderPass());
 		}
 
+		void enableDepthTest() {
+			m_depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;	
+			m_depthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
+		}
+		void disableDepthTest() {
+			m_depthStencilStateCreateInfo.depthTestEnable = VK_FALSE;
+			m_depthStencilStateCreateInfo.depthWriteEnable = VK_FALSE;
+		}
+
 		const VkPipeline& getVkPipeline() {
 			return m_pipeline;
 		}
@@ -406,10 +455,6 @@ namespace vkRenderer {
 		VkPipelineColorBlendStateCreateInfo    m_colorBlendStateCreateInfo;
 		VkPipelineDynamicStateCreateInfo       m_dynamicStateCreateInfo;
 	};
-
-	void allocateCommandBuffers(uint32_t countCommandBuffers, VkCommandBuffer* commandBuffers);
-
-	void createVertexBuffer(std::vector<Vertex>& vertexArray, VkDeviceMemory& deviceMemory, VkBuffer& vertexBuffer);
 }
 
 void initVulkan(GLFWwindow* window, uint32_t width, uint32_t height, const char* applicationName);
@@ -417,7 +462,3 @@ void initVulkan(GLFWwindow* window, uint32_t width, uint32_t height, const char*
 void terminateVulkan(vkRenderer::Shader &vertShader, vkRenderer::Shader &fragShader);
 
 void printStats();
-
-void updateUniform(UniformBufferObject &ubo);
-
-void drawFrame();
