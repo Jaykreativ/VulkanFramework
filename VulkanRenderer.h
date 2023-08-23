@@ -3,13 +3,12 @@
 #include <iostream>
 #include <chrono>
 
-#include "glm.hpp"
 #include "VulkanUtils.h"
 
 #include "Vertex.h"
 
 #define PRINT_PHYSICAL_DEVICES true
-#define PRINT_QUEUE_FAMILIES  true
+#define PRINT_QUEUE_FAMILIES  false
 #define PRINT_AVAILABLE_DEVICE_EXTENSIONS false
 #define PRINT_AVAILABLE_INSTANCE_EXTENSIONS false
 #define PRINT_AVAILABLE_INSTANCE_LAYERS false
@@ -120,6 +119,7 @@ namespace vkRenderer {
 
 	private:
 		bool m_isInit = false;
+		bool m_isAlloc = false;
 
 		VkDeviceSize m_size;
 		VkBufferUsageFlags m_usage;
@@ -134,6 +134,12 @@ namespace vkRenderer {
 		~Image();
 
 		void init();
+
+		void allocate(VkMemoryPropertyFlags memoryProperties);
+
+		void initView();
+
+		void changeLayout(VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
 
 		void setType(VkImageType type) {
 			m_type = type;
@@ -151,8 +157,8 @@ namespace vkRenderer {
 			m_usage = usage;
 		}
 
-		void setLayout(VkImageLayout layout) {
-			m_layout = layout;
+		void setInitialLayout(VkImageLayout layout) {
+			m_currentLayout = layout;
 		}
 
 		void setExtent(uint32_t width, uint32_t height, uint32_t depth) {
@@ -180,7 +186,12 @@ namespace vkRenderer {
 		}
 
 	private:
+		bool m_isInit = false;
+		bool m_isAlloc = false;
+		bool m_isViewInit = false;
+
 		VkImage m_image = VK_NULL_HANDLE;
+		VkDeviceMemory m_deviceMemory = VK_NULL_HANDLE;
 		VkImageView m_imageView = VK_NULL_HANDLE;
 
 		VkImageType m_type = VK_IMAGE_TYPE_2D;
@@ -192,7 +203,7 @@ namespace vkRenderer {
 		VkSampleCountFlagBits m_samples = VK_SAMPLE_COUNT_1_BIT;
 		VkImageTiling m_tiling = VK_IMAGE_TILING_OPTIMAL;
 		VkImageUsageFlags m_usage;
-		VkImageLayout m_layout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+		VkImageLayout m_currentLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
 
 	};
 	

@@ -6,7 +6,6 @@
 #endif
 
 #include "Application.h"
-#include "gtc/matrix_transform.hpp"
 
 #include <chrono>
 
@@ -185,12 +184,17 @@ int main() {
 	/*Initialization*/
 	{
 		app::depthImage.setFormat(VK_FORMAT_D24_UNORM_S8_UINT);
-		app::depthImage.setAspect(VK_IMAGE_ASPECT_DEPTH_BIT);
+		app::depthImage.setAspect(VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT);
 		app::depthImage.setUsage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-		app::depthImage.setLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+		app::depthImage.setInitialLayout(VK_IMAGE_LAYOUT_UNDEFINED);
 		app::depthImage.setWidth(app::width);
 		app::depthImage.setHeight(app::height);
+
 		app::depthImage.init();
+		app::depthImage.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		app::depthImage.initView();
+
+		app::depthImage.changeLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 0, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
 
 		VkAttachmentDescription colorAttachmentDescription;
 		colorAttachmentDescription.flags = 0;
@@ -205,7 +209,7 @@ int main() {
 
 		VkAttachmentDescription depthStencilAttachmentDescription;
 		depthStencilAttachmentDescription.flags = 0;
-		depthStencilAttachmentDescription.format = VK_USED_SCREENCOLOR_FORMAT;
+		depthStencilAttachmentDescription.format = VK_FORMAT_D24_UNORM_S8_UINT;
 		depthStencilAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
 		depthStencilAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		depthStencilAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -223,7 +227,7 @@ int main() {
 		colorAttachmentReference = &tmp1;
 
 		VkAttachmentReference tmp2;
-		tmp2.attachment = 0;
+		tmp2.attachment = 1;
 		tmp2.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		depthStencilAttachmentReference = &tmp2;
 
@@ -362,9 +366,10 @@ int main() {
 	recordCommandBuffers();
 #endif
 
-	//printStats();
+	printStats();
 	
 	float a = 0;
+	float rotation = 0;
 
 	double deltaTime = 0;
 	while (!glfwWindowShouldClose(app::window)) {
@@ -372,8 +377,10 @@ int main() {
 		if (a > 1) a = 0;
 		a += 0.5*deltaTime;
 
+		rotation += glm::radians(10.0f)*deltaTime;
+
 		app::ubo.color = glm::vec4(a, 1, 0.5, 1);
-		app::ubo.transform = glm::rotate(glm::mat4(1.0f), a * glm::radians(360.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		app::ubo.transform = glm::rotate(glm::mat4(1.0f), rotation, glm::vec3(0.0f, 0.0f, 1.0f));
 		app::ubo.view = glm::lookAt(glm::vec3(0, 1, 0.25f), glm::vec3(0, 0, 0), glm::vec3(0, 0, 1));
 		app::ubo.perspective = glm::perspective<float>(glm::radians(120.0f), app::width / static_cast<float>(app::height), 0.1f, 100);
 		app::ubo.viewport = glm::vec2(app::width, app::height);
@@ -416,6 +423,8 @@ int main() {
 	delete[] app::framebuffers;
 
 	app::renderPass.~RenderPass();
+
+	app::depthImage.~Image();
 
 	terminateVulkan(app::vertShader, app::fragShader);
 	

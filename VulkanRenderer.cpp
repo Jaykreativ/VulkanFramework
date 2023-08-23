@@ -225,11 +225,15 @@ namespace vkRenderer {
 	}
 
 	Buffer::~Buffer() {
-		if (!m_isInit) return;
-		m_isInit = false;
+		if (m_isAlloc) {
+			m_isAlloc = false;
+			vkFreeMemory(vkRenderer::device, m_deviceMemory, nullptr);
+		}
 
-		vkFreeMemory(vkRenderer::device, m_deviceMemory, nullptr);
-		vkDestroyBuffer(vkRenderer::device, m_buffer, nullptr);
+		if (m_isInit) {
+			m_isInit = false;
+			vkDestroyBuffer(vkRenderer::device, m_buffer, nullptr);
+		}
 	}
 
 	void Buffer::init() {
@@ -251,6 +255,9 @@ namespace vkRenderer {
 	}
 
 	void Buffer::allocate(VkMemoryPropertyFlags memoryPropertyFlags) {
+		if (m_isAlloc) return;
+		m_isAlloc = true;
+
 		VkMemoryRequirements memoryRequirements;
 		vkGetBufferMemoryRequirements(vkRenderer::device, m_buffer, &memoryRequirements);
 
@@ -312,11 +319,26 @@ namespace vkRenderer {
 	}
 
 	Image::~Image(){
-		vkDestroyImage(vkRenderer::device, m_image, nullptr);
-		vkDestroyImageView(vkRenderer::device, m_imageView, nullptr);
+		if (m_isViewInit) {
+			m_isViewInit = false;
+			vkDestroyImageView(vkRenderer::device, m_imageView, nullptr);
+		}
+
+		if (m_isAlloc) {
+			m_isAlloc = false;
+			vkFreeMemory(vkRenderer::device, m_deviceMemory, nullptr);
+		}
+
+		if (m_isInit) {
+			m_isInit = false;
+			vkDestroyImage(vkRenderer::device, m_image, nullptr);
+		}
 	}
 
 	void Image::init() {
+		if (m_isInit) return;
+		m_isInit = true;
+
 		VkImageCreateInfo createInfo;
 		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		createInfo.pNext = nullptr;
@@ -332,10 +354,31 @@ namespace vkRenderer {
 		createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		createInfo.queueFamilyIndexCount = 0;
 		createInfo.pQueueFamilyIndices = nullptr;
-		createInfo.initialLayout =	VK_IMAGE_LAYOUT_PREINITIALIZED;
+		createInfo.initialLayout =	m_currentLayout;
 
 		vkCreateImage(vkRenderer::device, &createInfo, nullptr, &m_image);
-		
+	}
+
+	void Image::allocate(VkMemoryPropertyFlags memoryProperties) {
+		if (m_isAlloc) return;
+		m_isAlloc = true;
+
+		VkMemoryRequirements memoryRequirements;
+		vkGetImageMemoryRequirements(vkRenderer::device, m_image, &memoryRequirements);
+
+		VkMemoryAllocateInfo allocateInfo{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr };
+		allocateInfo.allocationSize = memoryRequirements.size;
+		allocateInfo.memoryTypeIndex = vkUtils::findMemoryTypeIndex(vkRenderer::physicalDevice, memoryRequirements.memoryTypeBits, memoryProperties);
+
+		vkAllocateMemory(vkRenderer::device, &allocateInfo, nullptr, &m_deviceMemory);
+
+		vkBindImageMemory(vkRenderer::device, m_image, m_deviceMemory, 0);
+	}
+
+	void Image::initView() {
+		if (m_isViewInit) return;
+		m_isViewInit = true;
+
 		VkImageViewCreateInfo viewCreateInfo;
 		viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		viewCreateInfo.pNext = nullptr;
@@ -343,19 +386,43 @@ namespace vkRenderer {
 		viewCreateInfo.image = m_image;
 		viewCreateInfo.viewType = m_viewType;
 		viewCreateInfo.format = m_format;
-		viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-		viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_B;
-		viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_G;
-		viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+		viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
 		viewCreateInfo.subresourceRange.aspectMask = m_aspect;
 		viewCreateInfo.subresourceRange.baseMipLevel = 0;
 		viewCreateInfo.subresourceRange.levelCount = m_mipLevelCount;
 		viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-		viewCreateInfo.subresourceRange.levelCount = 1;
+		viewCreateInfo.subresourceRange.layerCount = 1;
 
 		vkCreateImageView(vkRenderer::device, &viewCreateInfo, nullptr, &m_imageView);
+	}
 
+	void Image::changeLayout(VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask) {
+		vkRenderer::CommandBuffer cmdBuffer = vkRenderer::CommandBuffer();
+		cmdBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
+		VkImageMemoryBarrier imageMemoryBarrier;
+		imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		imageMemoryBarrier.pNext = nullptr;
+		imageMemoryBarrier.srcAccessMask = srcAccessMask;
+		imageMemoryBarrier.dstAccessMask = dstAccessMask;
+		imageMemoryBarrier.oldLayout = m_currentLayout;
+		imageMemoryBarrier.newLayout = layout;
+		imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		imageMemoryBarrier.image = m_image;
+		imageMemoryBarrier.subresourceRange.aspectMask = m_aspect;
+		imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+		imageMemoryBarrier.subresourceRange.levelCount = m_mipLevelCount;
+		imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+		imageMemoryBarrier.subresourceRange.layerCount = 1;
+
+		vkCmdPipelineBarrier(cmdBuffer.getVkCommandBuffer(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+
+		cmdBuffer.end();
+		cmdBuffer.submit();
 	}
 
 	DescriptorPool::~DescriptorPool() {

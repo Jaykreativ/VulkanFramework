@@ -13,10 +13,9 @@ vec3 hsl2rgb( vec3 c ) {
 
 void main() {
     //float dist = sqrt(pow(gl_FragCoord.x-viewport.x/2, 2) + pow(gl_FragCoord.y-viewport.y/2, 2)); 
-    /*float dist = length(fragPos);
+    float dist = length(fragPos);
     vec3 color = fragColor.rgb;
     color.r += dist;
-    color.b = sin(dist/7.5+fragColor.r*6.1);
-    outColor = vec4(hsl2rgb(color), 1);*/
-    outColor = vec4(fragPos, 1);
+    color.b = sin(dist*50+fragColor.r*6.1);
+    outColor = vec4(hsl2rgb(color), 1);
 }
