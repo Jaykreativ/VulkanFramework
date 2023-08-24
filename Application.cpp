@@ -127,9 +127,19 @@ void resize(GLFWwindow* window, int width, int height) {
 
 	vkRenderer::updateSwapchain(app::width, app::height);
 
+	app::depthImage.~Image();
+	app::depthImage.setWidth(app::width);
+	app::depthImage.setHeight(app::height);
+	app::depthImage.init();
+	app::depthImage.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	app::depthImage.initView();
+
+	app::depthImage.changeLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 0, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
+
 	app::framebuffers = new vkRenderer::Framebuffer[app::commandBufferCount];
 	for (int i = 0; i < vkRenderer::getSwapchainImages().size(); i++) {
 		app::framebuffers[i].addAttachment(vkRenderer::getSwapchainImageViews()[i]);
+		app::framebuffers[i].addAttachment(app::depthImage.getVkImageView());
 		app::framebuffers[i].setRenderPass(app::renderPass);
 		app::framebuffers[i].setWidth(app::width);
 		app::framebuffers[i].setHeight(app::height);
