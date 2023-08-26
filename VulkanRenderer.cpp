@@ -1,4 +1,6 @@
-#include "VulkanRenderer.h"
+#include "include/VulkanRenderer.h"
+
+#include "VulkanUtils.h"
 
 namespace vkRenderer {
 	VkInstance instance;
@@ -697,12 +699,10 @@ namespace vkRenderer {
 		m_vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 		m_vertexInputStateCreateInfo.pNext = nullptr;
 		m_vertexInputStateCreateInfo.flags = 0;
-		m_vertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
-		auto inputBindingDescription = Vertex::getInputBindingDescription();//addVertexInputBindingDescription();
-		auto inputAttributeDescriptions = Vertex::getInputAttributeDescriptions();//TODO
-		m_vertexInputStateCreateInfo.pVertexBindingDescriptions = &inputBindingDescription;
-		m_vertexInputStateCreateInfo.vertexAttributeDescriptionCount = inputAttributeDescriptions.size();
-		m_vertexInputStateCreateInfo.pVertexAttributeDescriptions = inputAttributeDescriptions.data();
+		m_vertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
+		m_vertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
+		m_vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
+		m_vertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
 
 		m_inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		m_inputAssemblyStateCreateInfo.pNext = nullptr;

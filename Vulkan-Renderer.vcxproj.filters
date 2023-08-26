@@ -35,10 +35,10 @@
     <ClInclude Include="VulkanUtils.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
-    <ClInclude Include="VulkanRenderer.h">
+    <ClInclude Include="Application.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
-    <ClInclude Include="Application.h">
+    <ClInclude Include="include\VulkanRenderer.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
   </ItemGroup>

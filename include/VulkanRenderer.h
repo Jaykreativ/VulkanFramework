@@ -2,10 +2,10 @@
 
 #include <iostream>
 #include <chrono>
+#include <vector>
 
-#include "VulkanUtils.h"
-
-#include "Vertex.h"
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
 
 #define PRINT_PHYSICAL_DEVICES true
 #define PRINT_QUEUE_FAMILIES  false
