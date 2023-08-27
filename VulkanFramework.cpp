@@ -1,4 +1,4 @@
-#include "include/VulkanRenderer.h"
+#include "include/VulkanFramework.h"
 
 #include "VulkanUtils.h"
 
@@ -16,7 +16,6 @@ namespace vkRenderer {
 	VkSwapchainKHR swapchain;
 	std::vector<VkImage> swapchainImages;
 	std::vector<VkImageView> swapchainImageViews;
-	std::vector<VkFramebuffer> framebuffers;
 
 	VkCommandPool commandPool;
 

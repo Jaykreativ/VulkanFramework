@@ -18,7 +18,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="VulkanRenderer.cpp">
+    <ClCompile Include="VulkanFramework.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
     <ClCompile Include="Application.cpp">
@@ -38,7 +38,7 @@
     <ClInclude Include="Application.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
-    <ClInclude Include="include\VulkanRenderer.h">
+    <ClInclude Include="VulkanFramework.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
   </ItemGroup>
