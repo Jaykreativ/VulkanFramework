@@ -38,7 +38,7 @@
     <ClInclude Include="Application.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
-    <ClInclude Include="VulkanFramework.h">
+    <ClInclude Include="include\VulkanFramework.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
   </ItemGroup>

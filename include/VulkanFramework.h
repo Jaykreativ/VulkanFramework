@@ -26,24 +26,14 @@ namespace vkRenderer {
 	void deviceWaitIdle();
 	void allQueuesWaitIdle();
 
-	void updateSwapchain(uint32_t width, uint32_t height);
+	/*void updateSwapchain(uint32_t width, uint32_t height);
 
 	//getter
 	const std::vector<VkImage>& getSwapchainImages();
-	const std::vector<VkImageView>& getSwapchainImageViews();
+	const std::vector<VkImageView>& getSwapchainImageViews();*/
 
 	void createSemaphore(VkSemaphore* semaphore);
 	void destroySemaphore(VkSemaphore semaphore);
-
-	void createRenderPass(const std::vector<VkAttachmentDescription>& attachmentDescriptions, const std::vector<VkSubpassDescription>& subpassDescriptions, const std::vector<VkSubpassDependency>& subpassDependencies, VkRenderPass& renderPass);
-	void destroyRenderPass(VkRenderPass renderPass);
-
-	void createDefaultRenderPass(VkRenderPass& renderPass);
-
-	void createFramebuffer(VkRenderPass& renderPass, const std::vector<VkImageView>& attachments, uint32_t width, uint32_t height, VkFramebuffer& framebuffer);
-	void destroyFramebuffer(VkFramebuffer framebuffer);
-
-	void createPipeline(VkDevice& device, VkViewport& viewport, VkRect2D& scissor, VkDescriptorSetLayout& descriptorSetLayout, VkRenderPass& renderPass, VkShaderModule vertShader, VkShaderModule fragShader, VkPipelineLayout& layout, VkPipeline& pipeline);
 
 	class CommandBuffer {
 	public:
@@ -207,6 +197,76 @@ namespace vkRenderer {
 
 	};
 	
+	class Surface {
+	public:
+		Surface(){}
+		~Surface();
+
+		void init();
+
+		void setGLFWwindow(GLFWwindow* window) {
+			m_GLFWwindow = window;
+		}
+
+		const VkSurfaceKHR& getVkSurfaceKHR() {
+			return m_surface;
+		}
+
+	private:
+		bool m_isInit = false;
+
+		VkSurfaceKHR m_surface = VK_NULL_HANDLE;
+		GLFWwindow* m_GLFWwindow = nullptr;
+	};
+
+	class Swapchain {
+	public:
+		Swapchain();
+		~Swapchain();
+
+		void init();
+
+		void setSurface(VkSurfaceKHR surface) {
+			m_createInfo.surface = surface;
+		}
+		void setSurface(vkRenderer::Surface& surface) {
+			m_createInfo.surface = surface.getVkSurfaceKHR();
+		}
+
+		void setWidth(uint32_t width) {
+			m_createInfo.imageExtent.width = width;
+		}
+		void setHeight(uint32_t height) {
+			m_createInfo.imageExtent.height = height;
+		}
+
+		void setPresentMode(VkPresentModeKHR presentMode) {
+			m_createInfo.presentMode = presentMode;
+		}
+
+		uint32_t getImageCount() {
+			return m_images.size();
+		}
+
+		VkImage getImage(uint32_t index) {
+			if (index >= m_images.size()) return VK_NULL_HANDLE;
+			return m_images[index];
+		}
+
+		VkImageView getImageView(uint32_t index) {
+			if (index >= m_imageViews.size()) return VK_NULL_HANDLE;
+			return m_imageViews[index];
+		}
+
+	private:
+		VkSwapchainCreateInfoKHR m_createInfo {};
+		VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;
+
+		std::vector<VkImage> m_images;
+		std::vector<VkImageView> m_imageViews;
+
+	};
+
 	struct Descriptor {//TODO descriptor count
 		VkDescriptorType              type;
 		VkShaderStageFlags            stages;

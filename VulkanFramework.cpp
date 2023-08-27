@@ -12,7 +12,7 @@ namespace vkRenderer {
 	VkViewport viewport = {};
 	VkRect2D scissor = {};
 
-	VkSwapchainCreateInfoKHR swapchainCreateInfo{VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
+	VkSwapchainCreateInfoKHR swapchainCreateInfo{ VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR };
 	VkSwapchainKHR swapchain;
 	std::vector<VkImage> swapchainImages;
 	std::vector<VkImageView> swapchainImageViews;
@@ -424,6 +424,95 @@ namespace vkRenderer {
 
 		cmdBuffer.end();
 		cmdBuffer.submit();
+	}
+
+	Surface::~Surface() {
+		if (!m_isInit) return;
+		m_isInit = false;
+
+		vkDestroySurfaceKHR(vkRenderer::instance, m_surface, nullptr);
+	}
+
+	void Surface::init() {
+		if (m_isInit) return;
+		m_isInit = true;
+
+		if (m_GLFWwindow != nullptr) {
+			VkResult result = glfwCreateWindowSurface(vkRenderer::instance, m_GLFWwindow, nullptr, &m_surface);
+			VK_ASSERT(result);
+		}
+
+		if (!vkUtils::checkSurfaceSupport(vkRenderer::physicalDevice, vkRenderer::surface)) throw std::runtime_error("Surface not Supported!");
+	}
+
+	Swapchain::Swapchain() {
+		m_createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+		m_createInfo.pNext = nullptr;
+		m_createInfo.flags = 0;
+		m_createInfo.minImageCount = 3;
+		m_createInfo.imageFormat = VK_USED_SCREENCOLOR_FORMAT;
+		m_createInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+		m_createInfo.imageArrayLayers = 1;
+		m_createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		m_createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		m_createInfo.queueFamilyIndexCount = 0;
+		m_createInfo.pQueueFamilyIndices = nullptr;
+		m_createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+		m_createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+		m_createInfo.clipped = true;
+		m_createInfo.oldSwapchain = m_swapchain;
+	}
+
+	Swapchain::~Swapchain() {
+		for (VkImageView imageView : m_imageViews) vkDestroyImageView(vkRenderer::device, imageView, nullptr);
+
+		vkDestroySwapchainKHR(vkRenderer::device, m_swapchain, nullptr);
+	}
+
+	void Swapchain::init() {
+
+		VkSurfaceCapabilitiesKHR surfaceCapabilities;
+		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkRenderer::physicalDevice, vkRenderer::surface, &surfaceCapabilities);
+
+		auto supportedSurfacePresentModes = vkUtils::getSupportedSurfacePresentModes(vkRenderer::physicalDevice, vkRenderer::surface);
+
+		if (swapchainCreateInfo.minImageCount > surfaceCapabilities.maxImageCount) swapchainCreateInfo.minImageCount = surfaceCapabilities.maxImageCount;
+		if (swapchainCreateInfo.imageSharingMode == VK_SHARING_MODE_CONCURRENT) throw std::runtime_error("VK_SHARING_MODE_CONCURRENT is not yet supported!");
+		bool supported = false;
+		for (size_t i = 0; i < supportedSurfacePresentModes.size(); i++) supported |= swapchainCreateInfo.presentMode == supportedSurfacePresentModes[i];
+		if (!supported) {
+			std::cerr << "VkPresentModeKHR: " << m_createInfo.presentMode << " not supported, changed to VK_PRESENT_MODE_FIFO_KHR";
+			m_createInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+		}
+
+		vkCreateSwapchainKHR(vkRenderer::device, &m_createInfo, nullptr, &m_swapchain);
+
+		uint32_t imageCount = 0;
+		vkGetSwapchainImagesKHR(vkRenderer::device, m_swapchain, &imageCount, nullptr);
+		m_images.resize(imageCount);
+		m_imageViews.resize(imageCount);
+		vkGetSwapchainImagesKHR(vkRenderer::device, m_swapchain, &imageCount, m_images.data());
+
+		for (int i = 0; i < imageCount; i++) {
+			VkImageViewCreateInfo viewCreateInfo;
+			viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			viewCreateInfo.pNext = nullptr;
+			viewCreateInfo.flags = 0;
+			viewCreateInfo.image = m_images[i];
+			viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			viewCreateInfo.format = m_createInfo.imageFormat;
+			viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+			viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+			viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+			viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+			viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			viewCreateInfo.subresourceRange.baseMipLevel = 0;
+			viewCreateInfo.subresourceRange.levelCount = 1;
+			viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+			viewCreateInfo.subresourceRange.layerCount = 1;
+			
+			vkCreateImageView(vkRenderer::device, &viewCreateInfo, nullptr, &m_imageViews[i]);
+		}
 	}
 
 	DescriptorPool::~DescriptorPool() {
@@ -973,7 +1062,7 @@ namespace vkRenderer {
 		}
 	}
 
-	void updateSwapchain(uint32_t width, uint32_t height) {
+	/*void updateSwapchain(uint32_t width, uint32_t height) {
 		for (VkImageView imageView : vkRenderer::swapchainImageViews) vkDestroyImageView(vkRenderer::device, imageView, nullptr);
 		vkDestroySwapchainKHR(vkRenderer::device, vkRenderer::swapchain, nullptr);
 
@@ -989,7 +1078,7 @@ namespace vkRenderer {
 
 	const std::vector<VkImageView>& getSwapchainImageViews() {
 		return vkRenderer::swapchainImageViews;
-	}
+	}*/
 }
 
 void initVulkan(GLFWwindow* window, uint32_t width, uint32_t height, const char* applicationName) {
@@ -1018,17 +1107,17 @@ void initVulkan(GLFWwindow* window, uint32_t width, uint32_t height, const char*
 	vkRenderer::queueFamily = VK_PREFERED_QUEUE_FAMILY;//TODO civ
 	for (size_t i = 0; i < vkRenderer::queues.size(); i++) vkGetDeviceQueue(vkRenderer::device, vkRenderer::queueFamily, i, &vkRenderer::queues[i]); // Get Queues from Device
 	vkUtils::queueHandler::init(vkRenderer::queues);
-
-	vkRenderer::createGLFWWindowSurface(vkRenderer::instance, window, vkRenderer::surface); // Create and Check Surface
+	 
+	/*vkRenderer::createGLFWWindowSurface(vkRenderer::instance, window, vkRenderer::surface); // Create and Check Surface
 	if (!vkUtils::checkSurfaceSupport(vkRenderer::physicalDevice, vkRenderer::surface)) throw std::runtime_error("Surface not Supported!");
+
+	vkRenderer::createSwapchain(vkRenderer::device, vkRenderer::surface, VkExtent2D{ width, height }, vkRenderer::swapchain); // Create Swapchain and its Image Views
+	vkRenderer::createSwapchainImageViews(vkRenderer::device, vkRenderer::swapchain, vkRenderer::swapchainImages, vkRenderer::swapchainImageViews);*/
 
 	//TODO Make compile automatic in shader class
 #if _DEBUG
 	std::system("Shader\\compile-shader.bat");
 #endif
-
-	vkRenderer::createSwapchain(vkRenderer::device, vkRenderer::surface, VkExtent2D{ width, height }, vkRenderer::swapchain); // Create Swapchain and its Image Views
-	vkRenderer::createSwapchainImageViews(vkRenderer::device, vkRenderer::swapchain, vkRenderer::swapchainImages, vkRenderer::swapchainImageViews);
 
 	vkRenderer::createCommandPool(vkRenderer::device, vkRenderer::queueFamily, vkRenderer::commandPool);
 }

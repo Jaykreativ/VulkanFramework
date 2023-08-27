@@ -146,8 +146,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
+    <ClInclude Include="include\VulkanFramework.h" />
     <ClInclude Include="Vertex.h" />
-    <ClInclude Include="VulkanFramework.h" />
     <ClInclude Include="VulkanUtils.h" />
   </ItemGroup>
   <ItemGroup>

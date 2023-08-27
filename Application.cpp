@@ -46,6 +46,9 @@ namespace app {
 	vkRenderer::Shader vertShader;
 	vkRenderer::Shader fragShader;
 
+	vkRenderer::Surface surface;
+	vkRenderer::Swapchain swapchain;
+
 	vkRenderer::Image depthImage;
 
 	vkRenderer::RenderPass renderPass;
@@ -65,7 +68,7 @@ namespace app {
 }
 
 void recordCommandBuffers() {
-	for (int i = 0; i < vkRenderer::getSwapchainImages().size(); i++) {
+	for (int i = 0; i < app::swapchain.getImageCount(); i++) {
 		const VkFramebuffer& framebuffer = app::framebuffers[i].getVkFramebuffer();
 		vkRenderer::CommandBuffer& commandBuffer = app::commandBuffers[i];
 		commandBuffer.begin(VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT);
@@ -118,7 +121,7 @@ void recordCommandBuffers() {
 }
 
 void resize(GLFWwindow* window, int width, int height) {
-	app::width = width;
+	/*app::width = width;
 	app::height = height;
 	vkRenderer::deviceWaitIdle();
 
@@ -150,7 +153,7 @@ void resize(GLFWwindow* window, int width, int height) {
 	for (int i = 0; i < app::commandBufferCount; i++) {
 		app::commandBuffers[i].addWaitSemaphore(app::imageAvailable, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 	}
-	recordCommandBuffers();
+	recordCommandBuffers();*/
 }
 
 int main() {
@@ -192,6 +195,15 @@ int main() {
 	
 #if Test
 	/*Initialization*/
+	app::surface.setGLFWwindow(app::window);
+	app::surface.init();
+
+	app::swapchain.setSurface(app::surface);
+	app::swapchain.setPresentMode(VK_PRESENT_MODE_MAILBOX_KHR);
+	app::swapchain.setWidth(app::width);
+	app::swapchain.setHeight(app::height);
+	app::swapchain.init();
+
 	{
 		app::depthImage.setFormat(VK_FORMAT_D24_UNORM_S8_UINT);
 		app::depthImage.setAspect(VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT);
@@ -276,9 +288,9 @@ int main() {
 	}
 
 
-	app::framebuffers = new vkRenderer::Framebuffer[vkRenderer::getSwapchainImages().size()];
-	for (int i = 0; i < vkRenderer::getSwapchainImages().size(); i++) {
-		app::framebuffers[i].addAttachment(vkRenderer::getSwapchainImageViews()[i]);
+	app::framebuffers = new vkRenderer::Framebuffer[app::swapchain.getImageCount()];
+	for (int i = 0; i < app::swapchain.getImageCount(); i++) {
+		app::framebuffers[i].addAttachment(app::swapchain.getImageView(i));
 		app::framebuffers[i].addAttachment(app::depthImage.getVkImageView());
 		app::framebuffers[i].setRenderPass(app::renderPass);
 		app::framebuffers[i].setWidth(app::width);
@@ -366,9 +378,9 @@ int main() {
 
 	vkRenderer::createSemaphore(&app::imageAvailable);
 
-	app::commandBufferCount = vkRenderer::getSwapchainImages().size();//Allocate CommandBuffers for recording
+	app::commandBufferCount = app::swapchain.getImageCount();//Allocate CommandBuffers for recording
 	app::commandBuffers = new vkRenderer::CommandBuffer[app::commandBufferCount];
-	for (int i = 0; i < vkRenderer::getSwapchainImages().size(); i++) {
+	for (int i = 0; i < app::swapchain.getImageCount(); i++) {
 		app::commandBuffers[i].allocate();
 		app::commandBuffers[i].addWaitSemaphore(app::imageAvailable, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 	}
