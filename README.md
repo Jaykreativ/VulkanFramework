@@ -1,2 +1,2 @@
-# Vulkan-Renderer
-A renderer built with the Vulkan API
+# Vulkan-Framework
+A framework built for the Vulkan API
