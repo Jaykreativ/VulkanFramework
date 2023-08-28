@@ -19,21 +19,6 @@
 #define VK_USED_SCREENCOLOR_FORMAT VK_FORMAT_B8G8R8A8_UNORM //TODO civ
 
 namespace vkRenderer {
-	void acquireNextImage(VkSemaphore semaphore, VkFence fence, uint32_t* pImageIndex);
-
-	void queuePresent(VkQueue queue, uint32_t imageIndex);
-
-	void deviceWaitIdle();
-	void allQueuesWaitIdle();
-
-	/*void updateSwapchain(uint32_t width, uint32_t height);
-
-	//getter
-	const std::vector<VkImage>& getSwapchainImages();
-	const std::vector<VkImageView>& getSwapchainImageViews();*/
-
-	void createSemaphore(VkSemaphore* semaphore);
-	void destroySemaphore(VkSemaphore semaphore);
 
 	class CommandBuffer {
 	public:
@@ -226,6 +211,8 @@ namespace vkRenderer {
 
 		void init();
 
+		void update();
+
 		void setSurface(VkSurfaceKHR surface) {
 			m_createInfo.surface = surface;
 		}
@@ -244,6 +231,10 @@ namespace vkRenderer {
 			m_createInfo.presentMode = presentMode;
 		}
 
+		const VkSwapchainKHR& getVkSwapchainKHR() {
+			return m_swapchain;
+		}
+
 		uint32_t getImageCount() {
 			return m_images.size();
 		}
@@ -259,6 +250,8 @@ namespace vkRenderer {
 		}
 
 	private:
+		bool m_isInit = false;
+
 		VkSwapchainCreateInfoKHR m_createInfo {};
 		VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;
 
@@ -526,6 +519,24 @@ namespace vkRenderer {
 		VkPipelineColorBlendStateCreateInfo    m_colorBlendStateCreateInfo;
 		VkPipelineDynamicStateCreateInfo       m_dynamicStateCreateInfo;
 	};
+
+	void acquireNextImage(VkSwapchainKHR swapchain, VkSemaphore semaphore, VkFence fence, uint32_t* pImageIndex);
+	void acquireNextImage(Swapchain& swapchain, VkSemaphore semaphore, VkFence fence, uint32_t* pImageIndex);
+
+	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex);
+	void queuePresent(VkQueue queue, Swapchain& swapchain, uint32_t imageIndex);
+
+	void deviceWaitIdle();
+	void allQueuesWaitIdle();
+
+	/*void updateSwapchain(uint32_t width, uint32_t height);
+
+	//getter
+	const std::vector<VkImage>& getSwapchainImages();
+	const std::vector<VkImageView>& getSwapchainImageViews();*/
+
+	void createSemaphore(VkSemaphore* semaphore);
+	void destroySemaphore(VkSemaphore semaphore);
 }
 
 void initVulkan(GLFWwindow* window, uint32_t width, uint32_t height, const char* applicationName);

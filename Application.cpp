@@ -69,7 +69,7 @@ namespace app {
 
 void recordCommandBuffers() {
 	for (int i = 0; i < app::swapchain.getImageCount(); i++) {
-		const VkFramebuffer& framebuffer = app::framebuffers[i].getVkFramebuffer();
+		VkFramebuffer framebuffer = app::framebuffers[i].getVkFramebuffer();
 		vkRenderer::CommandBuffer& commandBuffer = app::commandBuffers[i];
 		commandBuffer.begin(VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT);
 
@@ -121,14 +121,16 @@ void recordCommandBuffers() {
 }
 
 void resize(GLFWwindow* window, int width, int height) {
-	/*app::width = width;
+	app::width = width;
 	app::height = height;
 	vkRenderer::deviceWaitIdle();
 
 	delete[] app::commandBuffers;
 	delete[] app::framebuffers;
 
-	vkRenderer::updateSwapchain(app::width, app::height);
+	app::swapchain.setWidth(app::width);
+	app::swapchain.setHeight(app::height);
+	app::swapchain.update();
 
 	app::depthImage.~Image();
 	app::depthImage.setWidth(app::width);
@@ -140,8 +142,8 @@ void resize(GLFWwindow* window, int width, int height) {
 	app::depthImage.changeLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 0, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
 
 	app::framebuffers = new vkRenderer::Framebuffer[app::commandBufferCount];
-	for (int i = 0; i < vkRenderer::getSwapchainImages().size(); i++) {
-		app::framebuffers[i].addAttachment(vkRenderer::getSwapchainImageViews()[i]);
+	for (int i = 0; i < app::swapchain.getImageCount(); i++) {
+		app::framebuffers[i].addAttachment(app::swapchain.getImageView(i));
 		app::framebuffers[i].addAttachment(app::depthImage.getVkImageView());
 		app::framebuffers[i].setRenderPass(app::renderPass);
 		app::framebuffers[i].setWidth(app::width);
@@ -153,7 +155,7 @@ void resize(GLFWwindow* window, int width, int height) {
 	for (int i = 0; i < app::commandBufferCount; i++) {
 		app::commandBuffers[i].addWaitSemaphore(app::imageAvailable, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 	}
-	recordCommandBuffers();*/
+	recordCommandBuffers();
 }
 
 int main() {
@@ -192,8 +194,7 @@ int main() {
 	glfwShowWindow(app::window);
 
 	initVulkan(app::window, app::width, app::height, app::TITLE);
-	
-#if Test
+
 	/*Initialization*/
 	app::surface.setGLFWwindow(app::window);
 	app::surface.init();
@@ -386,7 +387,6 @@ int main() {
 	}
 
 	recordCommandBuffers();
-#endif
 
 	printStats();
 	
@@ -412,12 +412,12 @@ int main() {
 		app::uniformBuffer.unmap();
 		
 		uint32_t imageIndex = 0;
-		vkRenderer::acquireNextImage(app::imageAvailable, VK_NULL_HANDLE, &imageIndex);
+		vkRenderer::acquireNextImage(app::swapchain, app::imageAvailable, VK_NULL_HANDLE, &imageIndex);
 
 		VkQueue queue;
 		app::commandBuffers[imageIndex].submit(&queue);
 
-		vkRenderer::queuePresent(queue, imageIndex);
+		vkRenderer::queuePresent(queue, app::swapchain, imageIndex);
 
 		glfwPollEvents();
 
@@ -447,6 +447,9 @@ int main() {
 	app::renderPass.~RenderPass();
 
 	app::depthImage.~Image();
+
+	app::swapchain.~Swapchain();
+	app::surface.~Surface();
 
 	terminateVulkan(app::vertShader, app::fragShader);
 	
