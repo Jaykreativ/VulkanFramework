@@ -216,7 +216,7 @@ namespace vk
 		void setSurface(VkSurfaceKHR surface) {
 			m_createInfo.surface = surface;
 		}
-		void setSurface(vkRenderer::Surface& surface) {
+		void setSurface(vk::Surface& surface) {
 			m_createInfo.surface = surface.getVkSurfaceKHR();
 		}
 
@@ -409,7 +409,7 @@ namespace vk
 		void setRenderPass(VkRenderPass renderPass) {
 			m_renderPass = renderPass;
 		}
-		void setRenderPass(vkRenderer::RenderPass& renderPass){
+		void setRenderPass(vk::RenderPass& renderPass){
 			setRenderPass(renderPass.getVkRenderPass());
 		}
 
@@ -473,7 +473,7 @@ namespace vk
 		void setRenderPass(VkRenderPass renderPass) {
 			m_renderPass = renderPass;
 		}
-		void setRenderPass(vkRenderer::RenderPass& renderPass) {
+		void setRenderPass(vk::RenderPass& renderPass) {
 			setRenderPass(renderPass.getVkRenderPass());
 		}
 
@@ -541,6 +541,6 @@ namespace vk
 
 void initVulkan(GLFWwindow* window, uint32_t width, uint32_t height, const char* applicationName);
 
-void terminateVulkan(vkRenderer::Shader &vertShader, vkRenderer::Shader &fragShader);
+void terminateVulkan(vk::Shader &vertShader, vk::Shader &fragShader);
 
 void printStats();
