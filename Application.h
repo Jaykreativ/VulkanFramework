@@ -2,7 +2,7 @@
 
 #define GLM_DEPTH_ZERO_TO_ONE
 
-#include "include/VulkanFramework.h"
+#include "VulkanFramework.h"
 #include "Vertex.h"
 #include "gtc/matrix_transform.hpp"
 #include "glm.hpp"
