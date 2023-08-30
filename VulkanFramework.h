@@ -18,8 +18,8 @@
 #define VK_PREFERED_AMOUNT_OF_QUEUES 4
 #define VK_USED_SCREENCOLOR_FORMAT VK_FORMAT_B8G8R8A8_UNORM //TODO civ
 
-namespace vkRenderer {
-
+namespace vk
+{
 	class CommandBuffer {
 	public:
 		CommandBuffer();
