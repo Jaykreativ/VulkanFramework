@@ -159,9 +159,6 @@ void resize(GLFWwindow* window, int width, int height) {
 }
 
 int main() {
-	std::string projDir = EXPAND(_PROJDIR);
-	projDir.erase(0, 1);
-	projDir.erase(projDir.length() - 2);
 
 #if _DEBUG
 	std::cout << "Mode: Debug\n";
@@ -324,8 +321,8 @@ int main() {
 	//Create Pipeline
 	{
 
-		app::vertShader.setPath(projDir + "Shader\\shader.vert.spv");
-		app::fragShader.setPath(projDir + "Shader\\shader.frag.spv");
+		app::vertShader.setPath("Shader\\shader.vert.spv");
+		app::fragShader.setPath("Shader\\shader.frag.spv");
 
 		app::vertShader.setStage(VK_SHADER_STAGE_VERTEX_BIT);
 		app::fragShader.setStage(VK_SHADER_STAGE_FRAGMENT_BIT);
