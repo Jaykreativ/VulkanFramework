@@ -16,7 +16,7 @@ namespace app {
 	uint32_t height = 600;
 	const char* TITLE = "Vulkan Application";
 
-	vkRenderer::Buffer vertexBuffer;
+	vk::Buffer vertexBuffer;
 	std::vector<Vertex> vertexArray = {
 		Vertex({0.5f, -0.5f, 0.5f}),
 		Vertex({-0.5f, -0.5f, 0.5f}),
@@ -25,7 +25,7 @@ namespace app {
 		Vertex({0, 0, -0.5f})
 	};
 
-	vkRenderer::Buffer indexBuffer;
+	vk::Buffer indexBuffer;
 	std::vector<uint32_t> indexArray = {
 		0, 1, 2,
 		0, 2, 3,
@@ -43,26 +43,26 @@ namespace app {
 		{ app::width, app::height }
 	};
 
-	vkRenderer::Shader vertShader;
-	vkRenderer::Shader fragShader;
+	vk::Shader vertShader;
+	vk::Shader fragShader;
 
-	vkRenderer::Surface surface;
-	vkRenderer::Swapchain swapchain;
+	vk::Surface surface;
+	vk::Swapchain swapchain;
 
-	vkRenderer::Image depthImage;
+	vk::Image depthImage;
 
-	vkRenderer::RenderPass renderPass;
+	vk::RenderPass renderPass;
 
-	vkRenderer::Framebuffer* framebuffers;
+	vk::Framebuffer* framebuffers;
 
-	vkRenderer::DescriptorPool descriptorPool;
+	vk::DescriptorPool descriptorPool;
 
-	vkRenderer::Buffer uniformBuffer;
+	vk::Buffer uniformBuffer;
 
-	vkRenderer::Pipeline pipeline;
+	vk::Pipeline pipeline;
 
 	uint32_t commandBufferCount;
-	vkRenderer::CommandBuffer* commandBuffers;
+	vk::CommandBuffer* commandBuffers;
 
 	VkSemaphore imageAvailable;
 }
@@ -70,7 +70,7 @@ namespace app {
 void recordCommandBuffers() {
 	for (int i = 0; i < app::swapchain.getImageCount(); i++) {
 		VkFramebuffer framebuffer = app::framebuffers[i].getVkFramebuffer();
-		vkRenderer::CommandBuffer& commandBuffer = app::commandBuffers[i];
+		vk::CommandBuffer& commandBuffer = app::commandBuffers[i];
 		commandBuffer.begin(VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT);
 
 		VkRenderPassBeginInfo renderPassBeginInfo;
@@ -123,7 +123,7 @@ void recordCommandBuffers() {
 void resize(GLFWwindow* window, int width, int height) {
 	app::width = width;
 	app::height = height;
-	vkRenderer::deviceWaitIdle();
+	vk::deviceWaitIdle();
 
 	delete[] app::commandBuffers;
 	delete[] app::framebuffers;
@@ -141,7 +141,7 @@ void resize(GLFWwindow* window, int width, int height) {
 
 	app::depthImage.changeLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 0, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
 
-	app::framebuffers = new vkRenderer::Framebuffer[app::commandBufferCount];
+	app::framebuffers = new vk::Framebuffer[app::commandBufferCount];
 	for (int i = 0; i < app::swapchain.getImageCount(); i++) {
 		app::framebuffers[i].addAttachment(app::swapchain.getImageView(i));
 		app::framebuffers[i].addAttachment(app::depthImage.getVkImageView());
@@ -151,7 +151,7 @@ void resize(GLFWwindow* window, int width, int height) {
 		app::framebuffers[i].init();
 	}
 
-	app::commandBuffers = new vkRenderer::CommandBuffer[app::commandBufferCount];
+	app::commandBuffers = new vk::CommandBuffer[app::commandBufferCount];
 	for (int i = 0; i < app::commandBufferCount; i++) {
 		app::commandBuffers[i].addWaitSemaphore(app::imageAvailable, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 	}
@@ -286,7 +286,7 @@ int main() {
 	}
 
 
-	app::framebuffers = new vkRenderer::Framebuffer[app::swapchain.getImageCount()];
+	app::framebuffers = new vk::Framebuffer[app::swapchain.getImageCount()];
 	for (int i = 0; i < app::swapchain.getImageCount(); i++) {
 		app::framebuffers[i].addAttachment(app::swapchain.getImageView(i));
 		app::framebuffers[i].addAttachment(app::depthImage.getVkImageView());
@@ -296,7 +296,7 @@ int main() {
 		app::framebuffers[i].init();
 	}
 
-	app::uniformBuffer = vkRenderer::Buffer(sizeof(UniformBufferObject), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+	app::uniformBuffer = vk::Buffer(sizeof(UniformBufferObject), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 	app::uniformBuffer.init(); app::uniformBuffer.allocate(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	void* data; app::uniformBuffer.map(&data);
 	memcpy(data, &app::ubo, sizeof(UniformBufferObject));
@@ -307,7 +307,7 @@ int main() {
 	bufferInfo.offset = 0;
 	bufferInfo.range = app::uniformBuffer.getSize();
 
-	vkRenderer::Descriptor descriptor{};
+	vk::Descriptor descriptor{};
 	descriptor.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	descriptor.stages = VK_SHADER_STAGE_VERTEX_BIT;
 	descriptor.binding = 0;
@@ -366,18 +366,18 @@ int main() {
 		app::pipeline.init();
 	}
 
-	app::vertexBuffer = vkRenderer::Buffer(app::vertexArray.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+	app::vertexBuffer = vk::Buffer(app::vertexArray.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 	app::vertexBuffer.init(); app::vertexBuffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	app::vertexBuffer.uploadData(app::vertexArray.size() * sizeof(Vertex), app::vertexArray.data());
 	
-	app::indexBuffer = vkRenderer::Buffer(app::indexArray.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+	app::indexBuffer = vk::Buffer(app::indexArray.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 	app::indexBuffer.init(); app::indexBuffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	app::indexBuffer.uploadData(app::indexArray.size() * sizeof(uint32_t), app::indexArray.data());
 
-	vkRenderer::createSemaphore(&app::imageAvailable);
+	vk::createSemaphore(&app::imageAvailable);
 
 	app::commandBufferCount = app::swapchain.getImageCount();//Allocate CommandBuffers for recording
-	app::commandBuffers = new vkRenderer::CommandBuffer[app::commandBufferCount];
+	app::commandBuffers = new vk::CommandBuffer[app::commandBufferCount];
 	for (int i = 0; i < app::swapchain.getImageCount(); i++) {
 		app::commandBuffers[i].allocate();
 		app::commandBuffers[i].addWaitSemaphore(app::imageAvailable, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
@@ -409,12 +409,12 @@ int main() {
 		app::uniformBuffer.unmap();
 		
 		uint32_t imageIndex = 0;
-		vkRenderer::acquireNextImage(app::swapchain, app::imageAvailable, VK_NULL_HANDLE, &imageIndex);
+		vk::acquireNextImage(app::swapchain, app::imageAvailable, VK_NULL_HANDLE, &imageIndex);
 
 		VkQueue queue;
 		app::commandBuffers[imageIndex].submit(&queue);
 
-		vkRenderer::queuePresent(queue, app::swapchain, imageIndex);
+		vk::queuePresent(queue, app::swapchain, imageIndex);
 
 		glfwPollEvents();
 
@@ -422,9 +422,9 @@ int main() {
 		deltaTime = std::chrono::duration_cast<std::chrono::duration<double>>(endFrame - startFrame).count();
 	}
 
-	vkRenderer::allQueuesWaitIdle();
+	vk::allQueuesWaitIdle();
 
-	vkRenderer::destroySemaphore(app::imageAvailable);
+	vk::destroySemaphore(app::imageAvailable);
 
 	app::uniformBuffer.~Buffer();
 	app::vertexBuffer.~Buffer();
