@@ -2,7 +2,7 @@
 
 #include "VulkanUtils.h"
 
-namespace vkRenderer
+namespace vk
 {
 	VkInstance instance;
 	VkPhysicalDevice physicalDevice;
