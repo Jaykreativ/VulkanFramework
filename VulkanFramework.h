@@ -70,9 +70,17 @@ namespace vk
 		void map(void** ptr);
 		void map(VkDeviceSize offset, void** ptr);
 
+		void resize(VkDeviceSize size) {
+			m_size = size;
+		}
+
 		void unmap();
 
 		void uploadData(uint32_t size, void* data);
+
+		void setUsage(VkBufferUsageFlags usage) {
+			m_usage = usage;
+		}
 
 		const VkBuffer& getVkBuffer() {
 			return m_buffer;
@@ -96,11 +104,11 @@ namespace vk
 		bool m_isInit = false;
 		bool m_isAlloc = false;
 
-		VkDeviceSize m_size;
+		VkDeviceSize m_size = 0;
 		VkBufferUsageFlags m_usage;
-		VkBuffer m_buffer;
+		VkBuffer m_buffer = VK_NULL_HANDLE;
 		VkMemoryPropertyFlags m_memoryPropertyFlags;
-		VkDeviceMemory m_deviceMemory;
+		VkDeviceMemory m_deviceMemory = VK_NULL_HANDLE;
 	};
 
 	class Image {
