@@ -690,6 +690,16 @@ namespace vk
 		m_shaderStage.module = m_module;
 	}
 
+	void Shader::compile(std::string srcDir, std::vector<std::string> srcNames, std::vector<std::string> dstDirs) {
+		for (auto srcName : srcNames) {
+			std::string dstName = srcName + ".spv";
+			system(("%VULKAN_SDK%\\Bin\\glslangValidator.exe -V " + srcDir + srcName + " -o " + dstDirs[0] + dstName).c_str());
+			for (int i = 1; i < dstDirs.size(); i++) {
+				system(("copy " + dstDirs[0] + dstName + " " + dstDirs[i]).c_str());
+			}
+		}
+	}
+
 	RenderPass::RenderPass()
 	{
 	}
