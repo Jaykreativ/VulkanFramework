@@ -320,9 +320,12 @@ int main() {
 	
 	//Create Pipeline
 	{
+#ifdef _DEBUG
+		vk::Shader::compile("Shader\\src\\", { "shader.vert", "shader.frag" }, { ".\\", "Debug\\", "Release\\"});
+#endif
 
-		app::vertShader.setPath("Shader\\shader.vert.spv");
-		app::fragShader.setPath("Shader\\shader.frag.spv");
+		app::vertShader.setPath("shader.vert.spv");
+		app::fragShader.setPath("shader.frag.spv");
 
 		app::vertShader.setStage(VK_SHADER_STAGE_VERTEX_BIT);
 		app::fragShader.setStage(VK_SHADER_STAGE_FRAGMENT_BIT);

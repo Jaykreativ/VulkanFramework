@@ -343,6 +343,8 @@ namespace vk
 			return m_path;
 		}
 
+		static void compile(std::string srcDir, std::vector<std::string> srcNames, std::vector<std::string> dstDirs);
+
 	private:
 		bool m_isInit = false;
 
