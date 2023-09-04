@@ -48,6 +48,8 @@ namespace vk
 			return m_commandBuffer;
 		}
 
+		operator VkCommandBuffer() const { return m_commandBuffer; }
+
 	private:
 		VkCommandBuffer m_commandBuffer;
 
@@ -549,8 +551,8 @@ namespace vk
 	void destroySemaphore(VkSemaphore semaphore);
 }
 
-void initVulkan(GLFWwindow* window, uint32_t width, uint32_t height, const char* applicationName);
+void initVulkan(const char* applicationName);
 
-void terminateVulkan(vk::Shader &vertShader, vk::Shader &fragShader);
+void terminateVulkan();
 
 void printStats();

@@ -1140,7 +1140,7 @@ namespace vk
 	}
 }
 
-void initVulkan(GLFWwindow *window, uint32_t width, uint32_t height, const char *applicationName)
+void initVulkan(const char *applicationName)
 {
 	std::vector<const char *> enabledInstanceLayers = {
 #if _DEBUG
@@ -1175,7 +1175,7 @@ void initVulkan(GLFWwindow *window, uint32_t width, uint32_t height, const char 
 	vk::createCommandPool(vk::device, vk::queueFamily, vk::commandPool);
 }
 
-void terminateVulkan(vk::Shader &vertShader, vk::Shader &fragShader)
+void terminateVulkan()
 {
 	for (VkQueue queue : vk::queues)
 	{
