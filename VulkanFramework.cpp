@@ -87,6 +87,7 @@ namespace vk
 		vkDestroySemaphore(vk::device, semaphore, nullptr);
 	}
 
+	/*CommandBuffer*/
 	CommandBuffer::CommandBuffer()
 	{
 		this->allocate();
@@ -159,6 +160,7 @@ namespace vk
 		vkQueueSubmit(*queue, 1, &submitInfo, VK_NULL_HANDLE);
 	}
 
+	/*Buffer*/
 	Buffer::~Buffer()
 	{
 		if (m_isAlloc)
@@ -269,6 +271,7 @@ namespace vk
 		commandBuffer.submit();
 	}
 
+	/*Image*/
 	Image::~Image()
 	{
 		if (m_isViewInit)
@@ -387,6 +390,7 @@ namespace vk
 		cmdBuffer.submit();
 	}
 
+	/*Surface*/
 	Surface::~Surface()
 	{
 		if (!m_isInit)
@@ -412,6 +416,7 @@ namespace vk
 			throw std::runtime_error("Surface not Supported!");
 	}
 
+	/*Swapchain*/
 	Swapchain::Swapchain()
 	{
 		m_createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -506,26 +511,90 @@ namespace vk
 		init();
 	}
 
+	/*DescriptorPool*/
+	void descriptorPoolInit(
+		std::vector<VkDescriptorPoolSize>&                      poolSizes,
+		std::vector<VkDescriptorSetLayoutCreateInfo>&           setLayoutCreateInfos,
+		std::vector<std::vector<VkDescriptorSetLayoutBinding>>& setLayoutCreateInfoBindings,
+		uint32_t&                                               descriptorSetCount,
+		VkDescriptorSet*&                                       pDescriptorSets,
+		VkDescriptorSetLayout*&                                 pDescriptorSetLayouts,
+		std::vector<VkWriteDescriptorSet>&                      writeDescriptorSets,
+		std::vector<uint32_t>&                                  writeDescriptorSetIndices,
+		VkDescriptorPool&                                       m_descriptorPool
+	) {
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
+		descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		descriptorPoolCreateInfo.pNext = nullptr;
+		descriptorPoolCreateInfo.flags = 0;
+		descriptorPoolCreateInfo.maxSets = setLayoutCreateInfos.size();
+		descriptorPoolCreateInfo.poolSizeCount = poolSizes.size();
+		descriptorPoolCreateInfo.pPoolSizes = poolSizes.data();
+
+		vkCreateDescriptorPool(vk::device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool);
+
+		pDescriptorSetLayouts = new VkDescriptorSetLayout[descriptorSetCount];
+		for (int i = 0; i < descriptorSetCount; i++)
+		{
+			setLayoutCreateInfos[i].bindingCount = setLayoutCreateInfoBindings[i].size();
+			setLayoutCreateInfos[i].pBindings = setLayoutCreateInfoBindings[i].data();
+			vkCreateDescriptorSetLayout(vk::device, &setLayoutCreateInfos[i], nullptr, &pDescriptorSetLayouts[i]);
+		}
+
+		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo;
+		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		descriptorSetAllocateInfo.pNext = nullptr;
+		descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
+		descriptorSetAllocateInfo.descriptorSetCount = descriptorSetCount;
+		descriptorSetAllocateInfo.pSetLayouts = pDescriptorSetLayouts;
+
+		pDescriptorSets = new VkDescriptorSet[descriptorSetCount];
+		vkAllocateDescriptorSets(vk::device, &descriptorSetAllocateInfo, pDescriptorSets);
+
+		for (int i = 0; i < writeDescriptorSets.size(); i++)
+		{
+			writeDescriptorSets[i].dstSet = pDescriptorSets[writeDescriptorSetIndices[i]];
+		}
+
+		vkUpdateDescriptorSets(vk::device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
+	}
+
+	void descriptorPoolDestroy(
+		uint32_t&                          descriptorSetCount,
+		VkDescriptorSet*&                  pDescriptorSets,
+		VkDescriptorSetLayout*&            pDescriptorSetLayouts,
+		std::vector<VkWriteDescriptorSet>& writeDescriptorSets,
+		VkDescriptorPool&                  descriptorPool
+	) {
+		for (int i = 0; i < descriptorSetCount; i++)
+		{
+			vkDestroyDescriptorSetLayout(vk::device, pDescriptorSetLayouts[i], nullptr);
+		}
+		vkDestroyDescriptorPool(vk::device, descriptorPool, nullptr);
+
+		delete[] pDescriptorSetLayouts;
+		delete[] pDescriptorSets;
+		for (int i = 0; i < writeDescriptorSets.size(); i++)
+		{
+			delete writeDescriptorSets[i].pImageInfo;
+			delete writeDescriptorSets[i].pBufferInfo;
+			delete writeDescriptorSets[i].pTexelBufferView;
+		}
+	}
+
 	DescriptorPool::~DescriptorPool()
 	{
 		if (!m_isInit)
 			return;
 		m_isInit = false;
 
-		for (int i = 0; i < m_descriptorSetCount; i++)
-		{
-			vkDestroyDescriptorSetLayout(vk::device, m_pDescriptorSetLayouts[i], nullptr);
-		}
-		vkDestroyDescriptorPool(vk::device, m_descriptorPool, nullptr);
-
-		delete[] m_pDescriptorSetLayouts;
-		delete[] m_pDescriptorSets;
-		for (int i = 0; i < m_writeDescriptorSets.size(); i++)
-		{
-			delete m_writeDescriptorSets[i].pImageInfo;
-			delete m_writeDescriptorSets[i].pBufferInfo;
-			delete m_writeDescriptorSets[i].pTexelBufferView;
-		}
+		descriptorPoolDestroy(
+			m_descriptorSetCount,
+			m_pDescriptorSets,
+			m_pDescriptorSetLayouts,
+			m_writeDescriptorSets,
+			m_descriptorPool
+		);
 	}
 
 	void DescriptorPool::init()
@@ -534,40 +603,44 @@ namespace vk
 			return;
 		m_isInit = true;
 
-		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
-		descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		descriptorPoolCreateInfo.pNext = nullptr;
-		descriptorPoolCreateInfo.flags = 0;
-		descriptorPoolCreateInfo.maxSets = m_setLayoutCreateInfos.size();
-		descriptorPoolCreateInfo.poolSizeCount = m_poolSizes.size();
-		descriptorPoolCreateInfo.pPoolSizes = m_poolSizes.data();
+		descriptorPoolInit(
+			m_poolSizes,
+			m_setLayoutCreateInfos,
+			m_setLayoutCreateInfoBindings,
+			m_descriptorSetCount,
+			m_pDescriptorSets,
+			m_pDescriptorSetLayouts,
+			m_writeDescriptorSets,
+			m_writeDescriptorSetIndices,
+			m_descriptorPool
+		);
+	}
 
-		vkCreateDescriptorPool(vk::device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool);
-
-		m_pDescriptorSetLayouts = new VkDescriptorSetLayout[m_descriptorSetCount];
-		for (int i = 0; i < m_descriptorSetCount; i++)
-		{
-			m_setLayoutCreateInfos[i].bindingCount = m_setLayoutCreateInfoBindings[i].size();
-			m_setLayoutCreateInfos[i].pBindings = m_setLayoutCreateInfoBindings[i].data();
-			vkCreateDescriptorSetLayout(vk::device, &m_setLayoutCreateInfos[i], nullptr, &m_pDescriptorSetLayouts[i]);
+	void DescriptorPool::update() {
+		if (m_isInit) {
+			descriptorPoolDestroy(
+				m_descriptorSetCount,
+				m_pDescriptorSets,
+				m_pDescriptorSetLayouts,
+				m_writeDescriptorSets,
+				m_descriptorPool
+			);
+		}
+		else {
+			m_isInit = true;
 		}
 
-		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo;
-		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		descriptorSetAllocateInfo.pNext = nullptr;
-		descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
-		descriptorSetAllocateInfo.descriptorSetCount = m_descriptorSetCount;
-		descriptorSetAllocateInfo.pSetLayouts = m_pDescriptorSetLayouts;
-
-		m_pDescriptorSets = new VkDescriptorSet[m_descriptorSetCount];
-		vkAllocateDescriptorSets(vk::device, &descriptorSetAllocateInfo, m_pDescriptorSets);
-
-		for (int i = 0; i < m_writeDescriptorSets.size(); i++)
-		{
-			m_writeDescriptorSets[i].dstSet = m_pDescriptorSets[m_writeDescriptorSetIndices[i]];
-		}
-
-		vkUpdateDescriptorSets(vk::device, m_writeDescriptorSets.size(), m_writeDescriptorSets.data(), 0, nullptr);
+		descriptorPoolInit(
+			m_poolSizes,
+			m_setLayoutCreateInfos,
+			m_setLayoutCreateInfoBindings,
+			m_descriptorSetCount,
+			m_pDescriptorSets,
+			m_pDescriptorSetLayouts,
+			m_writeDescriptorSets,
+			m_writeDescriptorSetIndices,
+			m_descriptorPool
+		);
 	}
 
 	void DescriptorPool::addDescriptorSet()
@@ -655,6 +728,7 @@ namespace vk
 		m_writeDescriptorSetIndices.push_back(setIndex);
 	}
 
+	/*Shader*/
 	Shader::Shader()
 	{
 		m_shaderStage.pName = "main";
@@ -700,6 +774,7 @@ namespace vk
 		}
 	}
 
+	/*RenderPass*/
 	RenderPass::RenderPass()
 	{
 	}
@@ -786,6 +861,7 @@ namespace vk
 		vkCreateRenderPass(vk::device, &createInfo, nullptr, &m_renderPass);
 	}
 
+	/*Framebuffer*/
 	Framebuffer::Framebuffer()
 	{
 	}
@@ -819,6 +895,7 @@ namespace vk
 		vkCreateFramebuffer(vk::device, &createInfo, nullptr, &m_framebuffer);
 	}
 
+	/*Pipeline*/
 	Pipeline::Pipeline()
 	{
 		m_vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;

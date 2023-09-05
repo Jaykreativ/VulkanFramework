@@ -284,6 +284,8 @@ namespace vk
 
 		void init();
 
+		void update();
+
 		void addDescriptorSet();
 
 		void addDescriptor(const Descriptor& descriptor, uint32_t setIndex);
@@ -313,9 +315,6 @@ namespace vk
 		std::vector<std::vector<VkDescriptorSetLayoutBinding>> m_setLayoutCreateInfoBindings;
 		std::vector<VkWriteDescriptorSet> m_writeDescriptorSets;
 		std::vector<uint32_t> m_writeDescriptorSetIndices;
-
-
-
 	};
 
 	class Shader {
@@ -538,12 +537,6 @@ namespace vk
 
 	void deviceWaitIdle();
 	void allQueuesWaitIdle();
-
-	/*void updateSwapchain(uint32_t width, uint32_t height);
-
-	//getter
-	const std::vector<VkImage>& getSwapchainImages();
-	const std::vector<VkImageView>& getSwapchainImageViews();*/
 
 	void createSemaphore(VkSemaphore* semaphore);
 	void destroySemaphore(VkSemaphore semaphore);
