@@ -292,6 +292,10 @@ namespace vk
 
 		void addDescriptor(const Descriptor& descriptor, uint32_t setIndex);
 
+		uint32_t getDescriptorSetCount() {
+			return m_descriptorSetCount;
+		}
+
 		const VkDescriptorPool& getDescriptorPool() {
 			return m_descriptorPool;
 		}
@@ -309,6 +313,7 @@ namespace vk
 
 		VkDescriptorPool m_descriptorPool;
 		uint32_t m_descriptorSetCount = 0;
+		uint32_t m_descriptorSetArrayLength = 0;
 		VkDescriptorSetLayout* m_pDescriptorSetLayouts = nullptr;
 		VkDescriptorSet* m_pDescriptorSets = nullptr;
 

@@ -517,6 +517,7 @@ namespace vk
 		std::vector<VkDescriptorSetLayoutCreateInfo>&           setLayoutCreateInfos,
 		std::vector<std::vector<VkDescriptorSetLayoutBinding>>& setLayoutCreateInfoBindings,
 		uint32_t&                                               descriptorSetCount,
+		uint32_t&                                               descriptorSetArrayLength,
 		VkDescriptorSet*&                                       pDescriptorSets,
 		VkDescriptorSetLayout*&                                 pDescriptorSetLayouts,
 		std::vector<VkWriteDescriptorSet>&                      writeDescriptorSets,
@@ -534,7 +535,8 @@ namespace vk
 		vkCreateDescriptorPool(vk::device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool);
 
 		pDescriptorSetLayouts = new VkDescriptorSetLayout[descriptorSetCount];
-		for (int i = 0; i < descriptorSetCount; i++)
+		descriptorSetArrayLength = descriptorSetCount;
+		for (int i = 0; i < descriptorSetArrayLength; i++)
 		{
 			setLayoutCreateInfos[i].bindingCount = setLayoutCreateInfoBindings[i].size();
 			setLayoutCreateInfos[i].pBindings = setLayoutCreateInfoBindings[i].data();
@@ -545,10 +547,10 @@ namespace vk
 		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		descriptorSetAllocateInfo.pNext = nullptr;
 		descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
-		descriptorSetAllocateInfo.descriptorSetCount = descriptorSetCount;
+		descriptorSetAllocateInfo.descriptorSetCount = descriptorSetArrayLength;
 		descriptorSetAllocateInfo.pSetLayouts = pDescriptorSetLayouts;
 
-		pDescriptorSets = new VkDescriptorSet[descriptorSetCount];
+		pDescriptorSets = new VkDescriptorSet[descriptorSetArrayLength];
 		vkAllocateDescriptorSets(vk::device, &descriptorSetAllocateInfo, pDescriptorSets);
 
 		for (int i = 0; i < writeDescriptorSets.size(); i++)
@@ -560,13 +562,13 @@ namespace vk
 	}
 
 	void descriptorPoolDestroy(
-		uint32_t&                          descriptorSetCount,
+		uint32_t&                          descriptorSetArrayLenght,
 		VkDescriptorSet*&                  pDescriptorSets,
 		VkDescriptorSetLayout*&            pDescriptorSetLayouts,
 		std::vector<VkWriteDescriptorSet>& writeDescriptorSets,
 		VkDescriptorPool&                  descriptorPool
 	) {
-		for (int i = 0; i < descriptorSetCount; i++)
+		for (int i = 0; i < descriptorSetArrayLenght; i++)
 		{
 			vkDestroyDescriptorSetLayout(vk::device, pDescriptorSetLayouts[i], nullptr);
 		}
@@ -608,6 +610,7 @@ namespace vk
 			m_setLayoutCreateInfos,
 			m_setLayoutCreateInfoBindings,
 			m_descriptorSetCount,
+			m_descriptorSetArrayLength,
 			m_pDescriptorSets,
 			m_pDescriptorSetLayouts,
 			m_writeDescriptorSets,
@@ -617,9 +620,11 @@ namespace vk
 	}
 
 	void DescriptorPool::update() {
+		for (int i = 0; i < m_descriptorSetArrayLength; i++) { std::cout << m_pDescriptorSetLayouts[i] << "\n"; }
+
 		if (m_isInit) {
 			descriptorPoolDestroy(
-				m_descriptorSetCount,
+				m_descriptorSetArrayLength,
 				m_pDescriptorSets,
 				m_pDescriptorSetLayouts,
 				m_writeDescriptorSets,
@@ -635,6 +640,7 @@ namespace vk
 			m_setLayoutCreateInfos,
 			m_setLayoutCreateInfoBindings,
 			m_descriptorSetCount,
+			m_descriptorSetArrayLength,
 			m_pDescriptorSets,
 			m_pDescriptorSetLayouts,
 			m_writeDescriptorSets,
