@@ -552,13 +552,6 @@ namespace vk
 
 		pDescriptorSets = new VkDescriptorSet[descriptorSetArrayLength];
 		vkAllocateDescriptorSets(vk::device, &descriptorSetAllocateInfo, pDescriptorSets);
-
-		for (int i = 0; i < writeDescriptorSets.size(); i++)
-		{
-			writeDescriptorSets[i].dstSet = pDescriptorSets[writeDescriptorSetIndices[i]];
-		}
-
-		vkUpdateDescriptorSets(vk::device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
 	}
 
 	void descriptorPoolDestroy(
@@ -576,12 +569,6 @@ namespace vk
 
 		delete[] pDescriptorSetLayouts;
 		delete[] pDescriptorSets;
-		for (int i = 0; i < writeDescriptorSets.size(); i++)
-		{
-			delete writeDescriptorSets[i].pImageInfo;
-			delete writeDescriptorSets[i].pBufferInfo;
-			delete writeDescriptorSets[i].pTexelBufferView;
-		}
 	}
 
 	DescriptorPool::~DescriptorPool()
@@ -597,6 +584,12 @@ namespace vk
 			m_writeDescriptorSets,
 			m_descriptorPool
 		);
+		for (int i = 0; i < m_writeDescriptorSets.size(); i++)
+		{
+			delete m_writeDescriptorSets[i].pImageInfo;
+			delete m_writeDescriptorSets[i].pBufferInfo;
+			delete m_writeDescriptorSets[i].pTexelBufferView;
+		}
 	}
 
 	void DescriptorPool::init()
@@ -647,6 +640,12 @@ namespace vk
 			m_writeDescriptorSetIndices,
 			m_descriptorPool
 		);
+		for (int i = 0; i < m_writeDescriptorSets.size(); i++)
+		{
+			m_writeDescriptorSets[i].dstSet = m_pDescriptorSets[m_writeDescriptorSetIndices[i]];
+		}
+
+		vkUpdateDescriptorSets(vk::device, m_writeDescriptorSets.size(), m_writeDescriptorSets.data(), 0, nullptr);
 	}
 
 	void DescriptorPool::addDescriptorSet()
