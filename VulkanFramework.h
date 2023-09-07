@@ -34,6 +34,8 @@ namespace vk
 
 		void submit();
 		void submit(VkQueue* queue);
+		void submit(VkFence fence);
+		void submit(VkQueue* queue, VkFence fence);
 
 		void addWaitSemaphore(VkSemaphore waitSemaphore, VkPipelineStageFlags waitDstStageMask) {
 			m_waitSemaphores.push_back(waitSemaphore);

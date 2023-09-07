@@ -153,14 +153,7 @@ namespace vk
 		VK_ASSERT(result);
 	}
 
-	void CommandBuffer::submit()
-	{
-		VkQueue queue;
-		submit(&queue);
-		vkQueueWaitIdle(queue);
-	}
-	void CommandBuffer::submit(VkQueue *queue)
-	{
+	void CommandBuffer::submit(VkQueue* queue, VkFence fence) {
 		VkSubmitInfo submitInfo;
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.pNext = nullptr;
@@ -173,7 +166,22 @@ namespace vk
 		submitInfo.pSignalSemaphores = m_signalSemaphores.data();
 
 		*queue = vkUtils::queueHandler::getQueue();
-		vkQueueSubmit(*queue, 1, &submitInfo, VK_NULL_HANDLE);
+		vkQueueSubmit(*queue, 1, &submitInfo, fence);
+	}
+	void CommandBuffer::submit(VkFence fence) {
+		VkQueue queue;
+		submit(&queue, fence);
+		vkQueueWaitIdle(queue);
+	}
+	void CommandBuffer::submit()
+	{
+		VkQueue queue;
+		submit(&queue);
+		vkQueueWaitIdle(queue);
+	}
+	void CommandBuffer::submit(VkQueue *queue)
+	{
+		submit(queue, VK_NULL_HANDLE);
 	}
 
 	/*Buffer*/
