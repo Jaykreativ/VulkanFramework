@@ -44,6 +44,13 @@ namespace vk
 			m_waitDstStageMasks.erase(m_waitDstStageMasks.begin() + index);
 		}
 
+		void addSignalSemaphore(VkSemaphore signalSemaphore) {
+			m_signalSemaphores.push_back(signalSemaphore);
+		}
+		void delSignalSemaphore(int index) {
+			m_signalSemaphores.erase(m_signalSemaphores.begin() + index);
+		}
+
 		const VkCommandBuffer& getVkCommandBuffer() {
 			return m_commandBuffer;
 		}
@@ -55,6 +62,7 @@ namespace vk
 
 		std::vector<VkSemaphore> m_waitSemaphores;
 		std::vector<VkPipelineStageFlags> m_waitDstStageMasks;
+		std::vector<VkSemaphore> m_signalSemaphores;
 	};
 
 	class Buffer {
@@ -292,6 +300,10 @@ namespace vk
 
 		void addDescriptor(const Descriptor& descriptor, uint32_t setIndex);
 
+		void addDescriptorSetUpdateCallback(void (*descriptorPoolUpdateCallback)()) {
+			m_descriptorPoolUpdateCallbacks.push_back(descriptorPoolUpdateCallback);
+		}
+
 		uint32_t getDescriptorSetCount() {
 			return m_descriptorSetCount;
 		}
@@ -310,6 +322,7 @@ namespace vk
 
 	private:
 		bool m_isInit = false;
+		std::vector<void (*)()> m_descriptorPoolUpdateCallbacks;
 
 		VkDescriptorPool m_descriptorPool;
 		uint32_t m_descriptorSetCount = 0;
@@ -541,12 +554,19 @@ namespace vk
 
 	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex);
 	void queuePresent(VkQueue queue, Swapchain& swapchain, uint32_t imageIndex);
+	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex, VkSemaphore waitSemaphore);
+	void queuePresent(VkQueue queue, Swapchain& swapchain, uint32_t imageIndex, VkSemaphore waitSemaphore);
 
 	void deviceWaitIdle();
 	void allQueuesWaitIdle();
 
 	void createSemaphore(VkSemaphore* semaphore);
 	void destroySemaphore(VkSemaphore semaphore);
+
+	void createFence(VkFence* fence);
+	void destroyFence(VkFence fence);
+
+	void waitForFence(VkFence fence);
 }
 
 void initVulkan(const char* applicationName);

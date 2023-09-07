@@ -87,6 +87,22 @@ namespace vk
 		vkDestroySemaphore(vk::device, semaphore, nullptr);
 	}
 
+	void createFence(VkFence* fence) {
+		VkFenceCreateInfo createInfo = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, 0};
+		vkCreateFence(vk::device, &createInfo, nullptr, fence);
+	}
+	void destroyFence(VkFence fence) {
+		vkDestroyFence(vk::device, fence, nullptr);
+	}
+
+	void resetFence(VkFence fence) {
+		vkResetFences(vk::device, 1, &fence);
+	}
+	void waitForFence(VkFence fence) {
+		vkWaitForFences(vk::device, 1, &fence, true, std::numeric_limits<uint64_t>::max());
+		resetFence(fence);
+	}
+
 	/*CommandBuffer*/
 	CommandBuffer::CommandBuffer()
 	{
@@ -153,8 +169,8 @@ namespace vk
 		submitInfo.pWaitDstStageMask = m_waitDstStageMasks.data();
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &m_commandBuffer;
-		submitInfo.signalSemaphoreCount = 0;
-		submitInfo.pSignalSemaphores = nullptr;
+		submitInfo.signalSemaphoreCount = m_signalSemaphores.size();
+		submitInfo.pSignalSemaphores = m_signalSemaphores.data();
 
 		*queue = vkUtils::queueHandler::getQueue();
 		vkQueueSubmit(*queue, 1, &submitInfo, VK_NULL_HANDLE);
@@ -552,6 +568,13 @@ namespace vk
 
 		pDescriptorSets = new VkDescriptorSet[descriptorSetArrayLength];
 		vkAllocateDescriptorSets(vk::device, &descriptorSetAllocateInfo, pDescriptorSets);
+
+		for (int i = 0; i < writeDescriptorSets.size(); i++)
+		{
+			writeDescriptorSets[i].dstSet = pDescriptorSets[writeDescriptorSetIndices[i]];
+		}
+
+		vkUpdateDescriptorSets(vk::device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
 	}
 
 	void descriptorPoolDestroy(
@@ -613,7 +636,9 @@ namespace vk
 	}
 
 	void DescriptorPool::update() {
-		for (int i = 0; i < m_descriptorSetArrayLength; i++) { std::cout << m_pDescriptorSetLayouts[i] << "\n"; }
+		for (void (*callback)() : m_descriptorPoolUpdateCallbacks) {
+			callback();
+		}
 
 		if (m_isInit) {
 			descriptorPoolDestroy(
@@ -640,12 +665,6 @@ namespace vk
 			m_writeDescriptorSetIndices,
 			m_descriptorPool
 		);
-		for (int i = 0; i < m_writeDescriptorSets.size(); i++)
-		{
-			m_writeDescriptorSets[i].dstSet = m_pDescriptorSets[m_writeDescriptorSetIndices[i]];
-		}
-
-		vkUpdateDescriptorSets(vk::device, m_writeDescriptorSets.size(), m_writeDescriptorSets.data(), 0, nullptr);
 	}
 
 	void DescriptorPool::addDescriptorSet()
@@ -1195,18 +1214,24 @@ namespace vk
 	}
 	void queuePresent(VkQueue queue, Swapchain &swapchain, uint32_t imageIndex)
 	{
+		queuePresent(queue, swapchain.getVkSwapchainKHR(), imageIndex);
+	}
+	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex, VkSemaphore waitSemaphore) {
 		VkPresentInfoKHR presentInfo;
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		presentInfo.pNext = nullptr;
-		presentInfo.waitSemaphoreCount = 0;
-		presentInfo.pWaitSemaphores = nullptr;
+		presentInfo.waitSemaphoreCount = 1;
+		presentInfo.pWaitSemaphores = &waitSemaphore;
 		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = &swapchain.getVkSwapchainKHR();
+		presentInfo.pSwapchains = &swapchain;
 		presentInfo.pImageIndices = &imageIndex;
 		presentInfo.pResults = nullptr;
 
 		VkResult result = vkQueuePresentKHR(queue, &presentInfo);
 		VK_ASSERT(result);
+	}
+	void queuePresent(VkQueue queue, Swapchain& swapchain, uint32_t imageIndex, VkSemaphore waitSemaphore) {
+		queuePresent(queue, swapchain.getVkSwapchainKHR(), imageIndex, waitSemaphore);
 	}
 
 	void deviceWaitIdle()
