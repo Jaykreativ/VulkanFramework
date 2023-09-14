@@ -74,6 +74,9 @@ namespace vk
 			: m_size(size), m_usage(usage)
 		{}
 		~Buffer();
+		Buffer& operator=(const Buffer& other);
+
+		operator VkBuffer();
 
 		void init();
 
