@@ -384,6 +384,10 @@ namespace vk
 		RenderPass(bool generateDefault);
 		~RenderPass();
 
+		operator VkRenderPass() {
+			return m_renderPass;
+		}
+
 		void init();
 
 		void addAttachmentDescription(const VkAttachmentDescription& description) {
