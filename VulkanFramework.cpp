@@ -205,13 +205,15 @@ namespace vk
 
 		m_size = other.m_size;
 		m_usage = other.m_usage;
-		if (!other.m_isInit) return;
+		if (!other.m_isInit) return *this;
 		m_isInit = other.m_isInit;
 		m_buffer = other.m_buffer;
-		if (!other.m_isAlloc) return;
+		if (!other.m_isAlloc) return *this;
 		m_isAlloc = other.m_isAlloc;
 		m_memoryPropertyFlags = other.m_memoryPropertyFlags;
 		m_deviceMemory = other.m_deviceMemory;
+		
+		return *this;
 	}
 
 	Buffer::operator VkBuffer() {
