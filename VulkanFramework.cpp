@@ -185,6 +185,11 @@ namespace vk
 	}
 
 	/*Buffer*/
+	Buffer::Buffer() {}
+	Buffer::Buffer(VkDeviceSize size, VkBufferUsageFlags usage)
+		: m_size(size), m_usage(usage)
+	{}
+
 	Buffer::~Buffer()
 	{
 		if (m_isAlloc)
@@ -218,6 +223,9 @@ namespace vk
 
 	Buffer::operator VkBuffer() {
 		return m_buffer;
+	}
+	Buffer::operator VkBuffer*() {
+		return &m_buffer;
 	}
 
 	void Buffer::init()
@@ -1152,7 +1160,7 @@ namespace vk
 		VkCommandPoolCreateInfo createInfo;
 		createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		createInfo.pNext = nullptr;
-		createInfo.flags = 0;
+		createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		createInfo.queueFamilyIndex = queueFamily;
 
 		vkCreateCommandPool(device, &createInfo, nullptr, &commandPool);

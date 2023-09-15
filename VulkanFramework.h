@@ -69,14 +69,14 @@ namespace vk
 
 	class Buffer {
 	public:
-		Buffer() {}
-		Buffer(VkDeviceSize size, VkBufferUsageFlags usage)
-			: m_size(size), m_usage(usage)
-		{}
+		Buffer();
+		Buffer(VkDeviceSize size, VkBufferUsageFlags usage);
+
 		~Buffer();
 		Buffer& operator=(const Buffer& other);
 
 		operator VkBuffer();
+		operator VkBuffer*();
 
 		void init();
 
@@ -435,6 +435,10 @@ namespace vk
 		Framebuffer();
 		~Framebuffer();
 
+		operator VkFramebuffer() {
+			return m_framebuffer;
+		}
+
 		void init();
 
 		void addAttachment(VkImageView attachment) {
@@ -458,6 +462,13 @@ namespace vk
 			m_height = height;
 		}
 
+		uint32_t getWidth() {
+			return m_width;
+		}
+		uint32_t getHeight() {
+			return m_height;
+		}
+
 		VkFramebuffer getVkFramebuffer() {
 			return m_framebuffer;
 		}
@@ -476,6 +487,10 @@ namespace vk
 	public:
 		Pipeline();
 		~Pipeline();
+
+		operator VkPipeline() {
+			return m_pipeline;
+		}
 
 		void init();
 
