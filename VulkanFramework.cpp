@@ -534,6 +534,12 @@ namespace vk
 		m_imageViews.resize(imageCount);
 		vkGetSwapchainImagesKHR(vk::device, m_swapchain, &imageCount, m_images.data());
 
+		m_imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		m_imageSubresourceRange.baseMipLevel = 0;
+		m_imageSubresourceRange.levelCount = 1;
+		m_imageSubresourceRange.baseArrayLayer = 0;
+		m_imageSubresourceRange.layerCount = 1;
+
 		for (int i = 0; i < imageCount; i++)
 		{
 			VkImageViewCreateInfo viewCreateInfo;
@@ -547,11 +553,7 @@ namespace vk
 			viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
 			viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
 			viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-			viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			viewCreateInfo.subresourceRange.baseMipLevel = 0;
-			viewCreateInfo.subresourceRange.levelCount = 1;
-			viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-			viewCreateInfo.subresourceRange.layerCount = 1;
+			viewCreateInfo.subresourceRange = m_imageSubresourceRange;
 
 			vkCreateImageView(vk::device, &viewCreateInfo, nullptr, &m_imageViews[i]);
 		}

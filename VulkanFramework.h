@@ -267,6 +267,10 @@ namespace vk
 			return m_images[index];
 		}
 
+		VkImageSubresourceRange getImageSubresourceRange() {
+			return m_imageSubresourceRange;
+		}
+
 		VkImageView getImageView(uint32_t index) {
 			if (index >= m_imageViews.size()) return VK_NULL_HANDLE;
 			return m_imageViews[index];
@@ -279,7 +283,9 @@ namespace vk
 		VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;
 
 		std::vector<VkImage> m_images;
+		VkImageSubresourceRange m_imageSubresourceRange;
 		std::vector<VkImageView> m_imageViews;
+
 
 	};
 
