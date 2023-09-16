@@ -184,6 +184,8 @@ namespace vk
 		submit(queue, VK_NULL_HANDLE);
 	}
 
+
+
 	/*Buffer*/
 	Buffer::Buffer() {}
 	Buffer::Buffer(VkDeviceSize size, VkBufferUsageFlags usage)
@@ -478,7 +480,7 @@ namespace vk
 		m_createInfo.imageFormat = VK_USED_SCREENCOLOR_FORMAT;
 		m_createInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 		m_createInfo.imageArrayLayers = 1;
-		m_createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		m_createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		m_createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		m_createInfo.queueFamilyIndexCount = 0;
 		m_createInfo.pQueueFamilyIndices = nullptr;
