@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
-add_library(VulkanFramework VulkanFramework.cpp VulkanUtils.cpp)
+file(GLOB VulkanFramework_SRC
+    "include/*"
+    "src/*"
+)
+add_library(VulkanFramework VulkanFramework_SRC)
 target_include_directories(
     VulkanFramework PUBLIC
     "${PROJECT_BINARY_DIR}"
