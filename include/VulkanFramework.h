@@ -24,7 +24,10 @@ namespace vk
 	public:
 		CommandBuffer();
 		CommandBuffer(bool autoAllocate);
+
 		~CommandBuffer();
+
+		operator VkCommandBuffer() const { return m_commandBuffer; }
 
 		void allocate();
 
@@ -37,27 +40,14 @@ namespace vk
 		void submit(VkFence fence);
 		void submit(VkQueue* queue, VkFence fence);
 
-		void addWaitSemaphore(VkSemaphore waitSemaphore, VkPipelineStageFlags waitDstStageMask) {
-			m_waitSemaphores.push_back(waitSemaphore);
-			m_waitDstStageMasks.push_back(waitDstStageMask);
-		}
-		void delWaitSemaphore(int index) {
-			m_waitSemaphores.erase(m_waitSemaphores.begin() + index);
-			m_waitDstStageMasks.erase(m_waitDstStageMasks.begin() + index);
-		}
+		void addWaitSemaphore(VkSemaphore waitSemaphore, VkPipelineStageFlags waitDstStageMask);
 
-		void addSignalSemaphore(VkSemaphore signalSemaphore) {
-			m_signalSemaphores.push_back(signalSemaphore);
-		}
-		void delSignalSemaphore(int index) {
-			m_signalSemaphores.erase(m_signalSemaphores.begin() + index);
-		}
+		void delWaitSemaphore(int index);
 
-		const VkCommandBuffer& getVkCommandBuffer() {
-			return m_commandBuffer;
-		}
+		void addSignalSemaphore(VkSemaphore signalSemaphore) { m_signalSemaphores.push_back(signalSemaphore); }
+		void delSignalSemaphore(int index) { m_signalSemaphores.erase(m_signalSemaphores.begin() + index); }
 
-		operator VkCommandBuffer() const { return m_commandBuffer; }
+		const VkCommandBuffer& getVkCommandBuffer() { return m_commandBuffer; }
 
 	private:
 		VkCommandBuffer m_commandBuffer;
@@ -69,11 +59,14 @@ namespace vk
 
 	class Buffer {
 	public:
-		Buffer() {}
-		Buffer(VkDeviceSize size, VkBufferUsageFlags usage)
-			: m_size(size), m_usage(usage)
-		{}
+		Buffer();
+		Buffer(VkDeviceSize size, VkBufferUsageFlags usage);
+
 		~Buffer();
+
+		Buffer& operator=(const Buffer& other);
+
+		operator VkBuffer() { return m_buffer; }
 
 		void init();
 
@@ -82,33 +75,23 @@ namespace vk
 		void map(void** ptr);
 		void map(VkDeviceSize offset, void** ptr);
 
-		void resize(VkDeviceSize size) {
-			m_size = size;
-		}
+		void resize(VkDeviceSize size) { m_size = size; }
 
 		void unmap();
 
 		void uploadData(uint32_t size, void* data);
 
-		void setUsage(VkBufferUsageFlags usage) {
-			m_usage = usage;
-		}
+		void setUsage(VkBufferUsageFlags usage) { m_usage = usage; }
 
-		const VkBuffer& getVkBuffer() {
-			return m_buffer;
-		}
-		const VkDeviceMemory& getDeviceMemory() {
-			return m_deviceMemory;
-		}
-		VkDeviceSize getSize() {
-			return m_size;
-		}
-		VkBufferUsageFlags getUsage() {
-			return m_usage;
-		}
-		VkMemoryPropertyFlags getMemoryPropertyFlags() {
-			return m_memoryPropertyFlags;
-		}
+		VkBuffer getVkBuffer() { return m_buffer; }
+
+		VkDeviceMemory getVkDeviceMemory() { return m_deviceMemory; }
+
+		VkDeviceSize getSize() { return m_size; }
+
+		VkBufferUsageFlags getUsage() { return m_usage; }
+
+		VkMemoryPropertyFlags getMemoryPropertyFlags() { return m_memoryPropertyFlags; }
 
 		static void copyBuffer(VkBuffer dst, VkBuffer src, VkDeviceSize size);
 
@@ -116,17 +99,21 @@ namespace vk
 		bool m_isInit = false;
 		bool m_isAlloc = false;
 
+		VkBuffer m_buffer = VK_NULL_HANDLE;
+		VkDeviceMemory m_deviceMemory = VK_NULL_HANDLE;
+
 		VkDeviceSize m_size = 0;
 		VkBufferUsageFlags m_usage;
-		VkBuffer m_buffer = VK_NULL_HANDLE;
 		VkMemoryPropertyFlags m_memoryPropertyFlags;
-		VkDeviceMemory m_deviceMemory = VK_NULL_HANDLE;
 	};
 
 	class Image {
 	public:
 		Image() {}
+
 		~Image();
+
+		operator VkImage() { return m_image; }
 
 		void init();
 
@@ -136,49 +123,30 @@ namespace vk
 
 		void changeLayout(VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
 
-		void setType(VkImageType type) {
-			m_type = type;
-		}
+		void setType(VkImageType type) { m_type = type; }
 
-		void setFormat(VkFormat format) {
-			m_format = format;
-		}
+		void setFormat(VkFormat format) { m_format = format; }
 
-		void setAspect(VkImageAspectFlags aspect) {
-			m_aspect = aspect;
-		}
+		void setAspect(VkImageAspectFlags aspect) { m_aspect = aspect; }
 
-		void setUsage(VkImageUsageFlags usage) {
-			m_usage = usage;
-		}
+		void setUsage(VkImageUsageFlags usage) { m_usage = usage; }
 
-		void setInitialLayout(VkImageLayout layout) {
-			m_currentLayout = layout;
-		}
+		void setInitialLayout(VkImageLayout layout) { m_currentLayout = layout; }
 
-		void setExtent(uint32_t width, uint32_t height, uint32_t depth) {
-			m_extent = { width, height, depth };
-		}
-		void setExtent(VkExtent3D extent) {
-			m_extent = extent;
-		}
+		void setExtent(uint32_t width, uint32_t height, uint32_t depth) { m_extent = { width, height, depth }; }
+		void setExtent(VkExtent3D extent) { m_extent = extent; }
 
-		void setWidth(uint32_t width) {
-			m_extent.width = width;
-		}
-		void setHeight(uint32_t height) {
-			m_extent.height = height;
-		}
-		void setDepth(uint32_t depth) {
-			m_extent.depth = depth;
-		}
+		void setWidth(uint32_t width) { m_extent.width = width; }
 
-		const VkImage& getVkImage() {
-			return m_image;
-		}
-		const VkImageView& getVkImageView() {
-			return m_imageView;
-		}
+		void setHeight(uint32_t height) { m_extent.height = height; }
+
+		void setDepth(uint32_t depth) { m_extent.depth = depth; }
+
+		VkImage getVkImage() { return m_image; }
+
+		VkDeviceMemory getVkDeviceMemory() { return m_deviceMemory; }
+
+		VkImageView getVkImageView() { return m_imageView; }
 
 	private:
 		bool m_isInit = false;
@@ -193,7 +161,7 @@ namespace vk
 		VkImageViewType m_viewType = VK_IMAGE_VIEW_TYPE_2D;
 		VkFormat m_format = VK_USED_SCREENCOLOR_FORMAT;
 		VkImageAspectFlags m_aspect = VK_IMAGE_ASPECT_NONE;
-		VkExtent3D m_extent = { 1, 1, 1 };
+		VkExtent3D m_extent;
 		uint32_t m_mipLevelCount = 1;
 		VkSampleCountFlagBits m_samples = VK_SAMPLE_COUNT_1_BIT;
 		VkImageTiling m_tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -205,17 +173,16 @@ namespace vk
 	class Surface {
 	public:
 		Surface(){}
+
 		~Surface();
+
+		operator VkSurfaceKHR() { return m_surface; }
 
 		void init();
 
-		void setGLFWwindow(GLFWwindow* window) {
-			m_GLFWwindow = window;
-		}
+		void setGLFWwindow(GLFWwindow* window) { m_GLFWwindow = window; }
 
-		const VkSurfaceKHR& getVkSurfaceKHR() {
-			return m_surface;
-		}
+		VkSurfaceKHR getVkSurfaceKHR() { return m_surface; }
 
 	private:
 		bool m_isInit = false;
@@ -227,57 +194,46 @@ namespace vk
 	class Swapchain {
 	public:
 		Swapchain();
+
 		~Swapchain();
+
+		operator VkSwapchainKHR() { return m_swapchain; }
 
 		void init();
 
 		void update();
 
-		void setSurface(VkSurfaceKHR surface) {
-			m_createInfo.surface = surface;
-		}
-		void setSurface(vk::Surface& surface) {
-			m_createInfo.surface = surface.getVkSurfaceKHR();
-		}
+		void setSurface(VkSurfaceKHR surface) { m_surface = surface; }
+		void setSurface(vk::Surface& surface) { m_surface = surface.getVkSurfaceKHR(); }
 
-		void setWidth(uint32_t width) {
-			m_createInfo.imageExtent.width = width;
-		}
-		void setHeight(uint32_t height) {
-			m_createInfo.imageExtent.height = height;
-		}
+		void setWidth(uint32_t width) { m_imageExtent.width = width; }
 
-		void setPresentMode(VkPresentModeKHR presentMode) {
-			m_createInfo.presentMode = presentMode;
-		}
+		void setHeight(uint32_t height) { m_imageExtent.height = height; }
 
-		const VkSwapchainKHR& getVkSwapchainKHR() {
-			return m_swapchain;
-		}
+		void setPresentMode(VkPresentModeKHR presentMode) { m_presentMode = presentMode; }
 
-		uint32_t getImageCount() {
-			return m_images.size();
-		}
+		VkSwapchainKHR getVkSwapchainKHR() { return m_swapchain; }
 
-		VkImage getImage(uint32_t index) {
-			if (index >= m_images.size()) return VK_NULL_HANDLE;
-			return m_images[index];
-		}
+		uint32_t getImageCount() { return m_images.size(); }
 
-		VkImageView getImageView(uint32_t index) {
-			if (index >= m_imageViews.size()) return VK_NULL_HANDLE;
-			return m_imageViews[index];
-		}
+		VkImage getImage(uint32_t index);
+
+		VkImageSubresourceRange getImageSubresourceRange() { return m_imageSubresourceRange; }
+
+		VkImageView getImageView(uint32_t index);
 
 	private:
 		bool m_isInit = false;
 
-		VkSwapchainCreateInfoKHR m_createInfo {};
 		VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;
-
 		std::vector<VkImage> m_images;
 		std::vector<VkImageView> m_imageViews;
 
+		VkSurfaceKHR m_surface = VK_NULL_HANDLE;
+		VkImageSubresourceRange m_imageSubresourceRange;
+		VkPresentModeKHR m_presentMode = VK_PRESENT_MODE_FIFO_KHR;
+		VkExtent2D m_imageExtent;
+		VkFormat m_imageFormat = VK_USED_SCREENCOLOR_FORMAT;
 	};
 
 	struct Descriptor {//TODO descriptor count
@@ -292,7 +248,10 @@ namespace vk
 	class DescriptorPool {
 	public:
 		DescriptorPool() {}
+
 		~DescriptorPool();
+
+		operator VkDescriptorPool() { return m_descriptorPool; }
 
 		void init();
 
@@ -302,36 +261,23 @@ namespace vk
 
 		void addDescriptor(const Descriptor& descriptor, uint32_t setIndex);
 
-		void addDescriptorSetUpdateCallback(void (*descriptorPoolUpdateCallback)()) {
-			m_descriptorPoolUpdateCallbacks.push_back(descriptorPoolUpdateCallback);
-		}
+		uint32_t getDescriptorSetCount() { return m_descriptorSetCount; }
 
-		uint32_t getDescriptorSetCount() {
-			return m_descriptorSetCount;
-		}
+		 VkDescriptorPool getVkDescriptorPool() { return m_descriptorPool; }
 
-		const VkDescriptorPool& getDescriptorPool() {
-			return m_descriptorPool;
-		}
+		VkDescriptorSet getVkDescriptorSet(int index) { return m_pDescriptorSets[index]; }
 
-		const VkDescriptorSet& getDescriptorSet(int index) {
-			return m_pDescriptorSets[index];
-		}
-
-		const VkDescriptorSetLayout& getDescriptorSetLayout(int index) {
-			return m_pDescriptorSetLayouts[index];
-		}
+		VkDescriptorSetLayout getVkDescriptorSetLayout(int index) { return m_pDescriptorSetLayouts[index]; }
 
 	private:
 		bool m_isInit = false;
-		std::vector<void (*)()> m_descriptorPoolUpdateCallbacks;
 
 		VkDescriptorPool m_descriptorPool;
-		uint32_t m_descriptorSetCount = 0;
 		uint32_t m_descriptorSetArrayLength = 0;
-		VkDescriptorSetLayout* m_pDescriptorSetLayouts = nullptr;
 		VkDescriptorSet* m_pDescriptorSets = nullptr;
+		VkDescriptorSetLayout* m_pDescriptorSetLayouts = nullptr;
 
+		uint32_t m_descriptorSetCount = 0;
 		std::vector<VkDescriptorPoolSize> m_poolSizes;
 		std::vector<VkDescriptorSetLayoutCreateInfo> m_setLayoutCreateInfos;
 		std::vector<std::vector<VkDescriptorSetLayoutBinding>> m_setLayoutCreateInfoBindings;
@@ -342,27 +288,19 @@ namespace vk
 	class Shader {
 	public:
 		Shader();
+
 		~Shader();
 
 		void init();
 
-		void setStage(VkShaderStageFlagBits stage) {
-			m_shaderStage.stage = stage;
-		}
-		VkPipelineShaderStageCreateInfo getShaderStage() {
-			return m_shaderStage;
-		}
+		void setStage(VkShaderStageFlagBits stage) { m_shaderStage.stage = stage; }
+		VkPipelineShaderStageCreateInfo getShaderStage() { return m_shaderStage; }
 
-		VkShaderModule getModule() {
-			return m_module;
-		}
+		VkShaderModule getModule() { return m_module; }
 
-		void setPath(std::string path) {
-			m_path = path;
-		}
-		std::string getPath() {
-			return m_path;
-		}
+		void setPath(std::string path) { m_path = path; }
+
+		std::string getPath() { return m_path; }
 
 		static void compile(std::string srcDir, std::vector<std::string> srcNames, std::vector<std::string> dstDirs);
 
@@ -378,39 +316,22 @@ namespace vk
 	class RenderPass {
 	public:
 		RenderPass();
-		RenderPass(bool generateDefault);
+
 		~RenderPass();
+
+		operator VkRenderPass() { return m_renderPass; }
 
 		void init();
 
-		void addAttachmentDescription(const VkAttachmentDescription& description) {
-			m_attachmentDescriptions.push_back(description);
-		}
+		void addAttachmentDescription(const VkAttachmentDescription& description);
 
-		void addAttachmentReference(VkAttachmentReference** referencePtr) {
-			VkAttachmentReference* attachmentReference = new VkAttachmentReference;
-			attachmentReference->attachment = (*referencePtr)->attachment;
-			attachmentReference->layout = (*referencePtr)->layout;
+		void addAttachmentReference(VkAttachmentReference** referencePtr);
 
-			*referencePtr = attachmentReference;
+		void addSubpassDescription(const VkSubpassDescription& description);
 
-			m_attachmentReferencePtrs.push_back(attachmentReference);
-		}
+		void addSubpassDependency(const VkSubpassDependency& dependency);
 
-		void addSubpassDescription(const VkSubpassDescription& description) {
-			m_subpassDescriptions.push_back(description);
-		}
-
-		void addSubpassDependency(const VkSubpassDependency& dependency) {
-			m_subpassDependencies.push_back(dependency);
-		}
-
-		const VkRenderPass& getVkRenderPass() {
-			return m_renderPass;
-		}
-		VkRenderPass& getVkRenderPassRef() {
-			return m_renderPass;
-		}
+		VkRenderPass getVkRenderPass() { return m_renderPass; }
 
 	private:
 		bool m_isInit = false;
@@ -426,34 +347,29 @@ namespace vk
 	class Framebuffer {
 	public:
 		Framebuffer();
+
 		~Framebuffer();
+
+		operator VkFramebuffer() { return m_framebuffer; }
 
 		void init();
 
-		void addAttachment(VkImageView attachment) {
-			m_attachments.push_back(attachment);
-		}
-		void delAttachment(int index) {
-			m_attachments.erase(m_attachments.begin() + index);
-		}
+		void addAttachment(VkImageView attachment) { m_attachments.push_back(attachment); }
 
-		void setRenderPass(VkRenderPass renderPass) {
-			m_renderPass = renderPass;
-		}
-		void setRenderPass(vk::RenderPass& renderPass){
-			setRenderPass(renderPass.getVkRenderPass());
-		}
+		void delAttachment(int index) { m_attachments.erase(m_attachments.begin() + index); }
 
-		void setWidth(uint32_t width) {
-			m_width = width;
-		}
-		void setHeight(uint32_t height) {
-			m_height = height;
-		}
+		void setRenderPass(VkRenderPass renderPass) { m_renderPass = renderPass; }
+		void setRenderPass(vk::RenderPass& renderPass){ setRenderPass(renderPass.getVkRenderPass()); }
 
-		VkFramebuffer getVkFramebuffer() {
-			return m_framebuffer;
-		}
+		void setWidth(uint32_t width) { m_width = width; }
+
+		void setHeight(uint32_t height) { m_height = height; }
+
+		uint32_t getWidth() { return m_width; }
+
+		uint32_t getHeight() { return m_height; }
+
+		VkFramebuffer getVkFramebuffer() { return m_framebuffer; }
 
 	private:
 		bool m_isInit = false;
@@ -470,60 +386,48 @@ namespace vk
 		Pipeline();
 		~Pipeline();
 
+		operator VkPipeline() { return m_pipeline; }
+
 		void init();
 
 		void addShader(const VkPipelineShaderStageCreateInfo& shaderStage);
+
 		void delShader(int index);
 
 		void addVertexInputBindingDescription(const VkVertexInputBindingDescription& vertexInputBindingDescription);
+
 		void delVertexInputBindingDescription(int index);
 
 		void addVertexInputAttrubuteDescription(const VkVertexInputAttributeDescription& vertexInputAttributeDescription);
+
 		void delVertexInputAttrubuteDescription(int index);
 
-		void addDescriptorSetLayout(VkDescriptorSetLayout setLayout) {
-			m_setLayouts.push_back(setLayout);
-		}
-		void delDescriptorSetLayout(int index) {
-			m_setLayouts.erase(m_setLayouts.begin()+index);
-		}
+		void addDescriptorSetLayout(VkDescriptorSetLayout setLayout) { m_setLayouts.push_back(setLayout); }
+
+		void delDescriptorSetLayout(int index) { m_setLayouts.erase(m_setLayouts.begin()+index); }
 
 		void addViewport(const VkViewport& viewport);
+
 		void delViewport(int index);
 		
 		void addScissor(const VkRect2D& scissor);
+
 		void delScissor(int index);
 
-		void addDynamicState(VkDynamicState dynamicState) {
-			m_dynamicStates.push_back(dynamicState);
-		}
-		void delDynamicState(int index) {
-			m_dynamicStates.erase(m_dynamicStates.begin() + index);
-		}
+		void addDynamicState(VkDynamicState dynamicState) { m_dynamicStates.push_back(dynamicState); }
 
-		void setRenderPass(VkRenderPass renderPass) {
-			m_renderPass = renderPass;
-		}
-		void setRenderPass(vk::RenderPass& renderPass) {
-			setRenderPass(renderPass.getVkRenderPass());
-		}
+		void delDynamicState(int index) { m_dynamicStates.erase(m_dynamicStates.begin() + index); }
 
-		void enableDepthTest() {
-			m_depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;	
-			m_depthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
-		}
-		void disableDepthTest() {
-			m_depthStencilStateCreateInfo.depthTestEnable = VK_FALSE;
-			m_depthStencilStateCreateInfo.depthWriteEnable = VK_FALSE;
-		}
+		void setRenderPass(VkRenderPass renderPass) { m_renderPass = renderPass; }
+		void setRenderPass(vk::RenderPass& renderPass) { setRenderPass(renderPass.getVkRenderPass()); }
 
-		const VkPipeline& getVkPipeline() {
-			return m_pipeline;
-		}
+		void enableDepthTest();
 
-		const VkPipelineLayout& getPipelineLayout() {
-			return m_pipelineLayout;
-		}
+		void disableDepthTest();
+
+		VkPipeline getVkPipeline() { return m_pipeline; }
+
+		VkPipelineLayout getVkPipelineLayout() { return m_pipelineLayout; }
 
 	private:
 		bool m_isInit = false;

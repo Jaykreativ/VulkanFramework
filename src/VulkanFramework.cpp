@@ -184,7 +184,21 @@ namespace vk
 		submit(queue, VK_NULL_HANDLE);
 	}
 
+	void CommandBuffer::addWaitSemaphore(VkSemaphore waitSemaphore, VkPipelineStageFlags waitDstStageMask) {
+		m_waitSemaphores.push_back(waitSemaphore);
+		m_waitDstStageMasks.push_back(waitDstStageMask);
+	}
+	void CommandBuffer::delWaitSemaphore(int index) {
+		m_waitSemaphores.erase(m_waitSemaphores.begin() + index);
+		m_waitDstStageMasks.erase(m_waitDstStageMasks.begin() + index);
+	}
+
 	/*Buffer*/
+	Buffer::Buffer() {}
+	Buffer::Buffer(VkDeviceSize size, VkBufferUsageFlags usage)
+		: m_size(size), m_usage(usage)
+	{}
+
 	Buffer::~Buffer()
 	{
 		if (m_isAlloc)
@@ -198,6 +212,22 @@ namespace vk
 			m_isInit = false;
 			vkDestroyBuffer(vk::device, m_buffer, nullptr);
 		}
+	}
+
+	Buffer& Buffer::operator=(const Buffer& other) {
+		this->~Buffer();
+
+		m_size = other.m_size;
+		m_usage = other.m_usage;
+		if (!other.m_isInit) return *this;
+		m_isInit = other.m_isInit;
+		m_buffer = other.m_buffer;
+		if (!other.m_isAlloc) return *this;
+		m_isAlloc = other.m_isAlloc;
+		m_memoryPropertyFlags = other.m_memoryPropertyFlags;
+		m_deviceMemory = other.m_deviceMemory;
+		
+		return *this;
 	}
 
 	void Buffer::init()
@@ -441,24 +471,7 @@ namespace vk
 	}
 
 	/*Swapchain*/
-	Swapchain::Swapchain()
-	{
-		m_createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-		m_createInfo.pNext = nullptr;
-		m_createInfo.flags = 0;
-		m_createInfo.minImageCount = 3;
-		m_createInfo.imageFormat = VK_USED_SCREENCOLOR_FORMAT;
-		m_createInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-		m_createInfo.imageArrayLayers = 1;
-		m_createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		m_createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		m_createInfo.queueFamilyIndexCount = 0;
-		m_createInfo.pQueueFamilyIndices = nullptr;
-		m_createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-		m_createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-		m_createInfo.clipped = true;
-		m_createInfo.oldSwapchain = m_swapchain;
-	}
+	Swapchain::Swapchain(){}
 
 	Swapchain::~Swapchain()
 	{
@@ -480,31 +493,57 @@ namespace vk
 			return;
 		m_isInit = true;
 
+		VkSwapchainCreateInfoKHR createInfo;
+		createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+		createInfo.pNext = nullptr;
+		createInfo.flags = 0;
+		createInfo.surface = m_surface;
+		createInfo.minImageCount = 3;
+		createInfo.imageFormat = m_imageFormat;
+		createInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+		createInfo.imageExtent = m_imageExtent;
+		createInfo.imageArrayLayers = 1;
+		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		createInfo.queueFamilyIndexCount = 0;
+		createInfo.pQueueFamilyIndices = nullptr;
+		createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+		createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+		createInfo.presentMode = m_presentMode;
+		createInfo.clipped = true;
+		createInfo.oldSwapchain = m_swapchain;
+
 		VkSurfaceCapabilitiesKHR surfaceCapabilities;
-		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk::physicalDevice, m_createInfo.surface, &surfaceCapabilities);
+		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk::physicalDevice, m_surface, &surfaceCapabilities);
 
-		auto supportedSurfacePresentModes = vkUtils::getSupportedSurfacePresentModes(vk::physicalDevice, m_createInfo.surface);
+		auto supportedSurfacePresentModes = vkUtils::getSupportedSurfacePresentModes(vk::physicalDevice, m_surface);
 
-		if (m_createInfo.minImageCount > surfaceCapabilities.maxImageCount)
-			m_createInfo.minImageCount = surfaceCapabilities.maxImageCount;
-		if (m_createInfo.imageSharingMode == VK_SHARING_MODE_CONCURRENT)
+		if (createInfo.minImageCount > surfaceCapabilities.maxImageCount)
+			createInfo.minImageCount = surfaceCapabilities.maxImageCount;
+		if (createInfo.imageSharingMode == VK_SHARING_MODE_CONCURRENT)
 			throw std::runtime_error("VK_SHARING_MODE_CONCURRENT is not yet supported!");
 		bool supported = false;
 		for (size_t i = 0; i < supportedSurfacePresentModes.size(); i++)
-			supported |= m_createInfo.presentMode == supportedSurfacePresentModes[i];
+			supported |= m_presentMode == supportedSurfacePresentModes[i];
 		if (!supported)
 		{
-			std::cerr << "VkPresentModeKHR: " << m_createInfo.presentMode << " not supported, changed to VK_PRESENT_MODE_FIFO_KHR\n";
-			m_createInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+			std::cerr << "VkPresentModeKHR: " << m_presentMode << " not supported, changed to VK_PRESENT_MODE_FIFO_KHR\n";
+			m_presentMode = VK_PRESENT_MODE_FIFO_KHR;
 		}
 
-		vkCreateSwapchainKHR(vk::device, &m_createInfo, nullptr, &m_swapchain);
+		vkCreateSwapchainKHR(vk::device, &createInfo, nullptr, &m_swapchain);
 
 		uint32_t imageCount = 0;
 		vkGetSwapchainImagesKHR(vk::device, m_swapchain, &imageCount, nullptr);
 		m_images.resize(imageCount);
 		m_imageViews.resize(imageCount);
 		vkGetSwapchainImagesKHR(vk::device, m_swapchain, &imageCount, m_images.data());
+
+		m_imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		m_imageSubresourceRange.baseMipLevel = 0;
+		m_imageSubresourceRange.levelCount = 1;
+		m_imageSubresourceRange.baseArrayLayer = 0;
+		m_imageSubresourceRange.layerCount = 1;
 
 		for (int i = 0; i < imageCount; i++)
 		{
@@ -514,16 +553,12 @@ namespace vk
 			viewCreateInfo.flags = 0;
 			viewCreateInfo.image = m_images[i];
 			viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			viewCreateInfo.format = m_createInfo.imageFormat;
+			viewCreateInfo.format = m_imageFormat;
 			viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
 			viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
 			viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
 			viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-			viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			viewCreateInfo.subresourceRange.baseMipLevel = 0;
-			viewCreateInfo.subresourceRange.levelCount = 1;
-			viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-			viewCreateInfo.subresourceRange.layerCount = 1;
+			viewCreateInfo.subresourceRange = m_imageSubresourceRange;
 
 			vkCreateImageView(vk::device, &viewCreateInfo, nullptr, &m_imageViews[i]);
 		}
@@ -535,8 +570,18 @@ namespace vk
 		init();
 	}
 
+	VkImage Swapchain::getImage(uint32_t index) {
+		if (index >= m_images.size()) return VK_NULL_HANDLE;
+		return m_images[index];
+	}
+
+	VkImageView Swapchain::getImageView(uint32_t index) {
+		if (index >= m_imageViews.size()) return VK_NULL_HANDLE;
+		return m_imageViews[index];
+	}
+
 	/*DescriptorPool*/
-	void descriptorPoolInit(
+	void descriptorPoolCreate(
 		std::vector<VkDescriptorPoolSize>&                      poolSizes,
 		std::vector<VkDescriptorSetLayoutCreateInfo>&           setLayoutCreateInfos,
 		std::vector<std::vector<VkDescriptorSetLayoutBinding>>& setLayoutCreateInfoBindings,
@@ -629,7 +674,7 @@ namespace vk
 			return;
 		m_isInit = true;
 
-		descriptorPoolInit(
+		descriptorPoolCreate(
 			m_poolSizes,
 			m_setLayoutCreateInfos,
 			m_setLayoutCreateInfoBindings,
@@ -644,10 +689,6 @@ namespace vk
 	}
 
 	void DescriptorPool::update() {
-		for (void (*callback)() : m_descriptorPoolUpdateCallbacks) {
-			callback();
-		}
-
 		if (m_isInit) {
 			descriptorPoolDestroy(
 				m_descriptorSetArrayLength,
@@ -661,7 +702,7 @@ namespace vk
 			m_isInit = true;
 		}
 
-		descriptorPoolInit(
+		descriptorPoolCreate(
 			m_poolSizes,
 			m_setLayoutCreateInfos,
 			m_setLayoutCreateInfoBindings,
@@ -810,54 +851,6 @@ namespace vk
 	RenderPass::RenderPass()
 	{
 	}
-	RenderPass::RenderPass(bool generateDefault)
-	{
-		if (generateDefault)
-		{
-			VkAttachmentDescription colorAttachmentDescription;
-			colorAttachmentDescription.flags = 0;
-			colorAttachmentDescription.format = VK_USED_SCREENCOLOR_FORMAT;
-			colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-			colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-			VkAttachmentReference *colorAttachmentReference = new VkAttachmentReference;
-			colorAttachmentReference->attachment = 0;
-			colorAttachmentReference->layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
-
-			m_attachmentDescriptions.push_back(colorAttachmentDescription);
-			m_attachmentReferencePtrs.push_back(colorAttachmentReference);
-
-			VkSubpassDescription subpassDescription;
-			subpassDescription.flags = 0;
-			subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-			subpassDescription.inputAttachmentCount = 0;
-			subpassDescription.pInputAttachments = nullptr;
-			subpassDescription.colorAttachmentCount = 1;
-			subpassDescription.pColorAttachments = colorAttachmentReference;
-			subpassDescription.pResolveAttachments = nullptr;
-			subpassDescription.pDepthStencilAttachment = nullptr;
-			subpassDescription.preserveAttachmentCount = 0;
-			subpassDescription.pPreserveAttachments = nullptr;
-
-			m_subpassDescriptions.push_back(subpassDescription);
-
-			VkSubpassDependency subpassDependency;
-			subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-			subpassDependency.dstSubpass = 0;
-			subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			subpassDependency.srcAccessMask = 0;
-			subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			subpassDependency.dependencyFlags = 0;
-
-			m_subpassDependencies.push_back(subpassDependency);
-		}
-	}
 
 	RenderPass::~RenderPass()
 	{
@@ -891,6 +884,28 @@ namespace vk
 		createInfo.pDependencies = m_subpassDependencies.data();
 
 		vkCreateRenderPass(vk::device, &createInfo, nullptr, &m_renderPass);
+	}
+
+	void RenderPass::addAttachmentDescription(const VkAttachmentDescription& description) {
+		m_attachmentDescriptions.push_back(description);
+	}
+
+	void RenderPass::addAttachmentReference(VkAttachmentReference** referencePtr) {
+		VkAttachmentReference* attachmentReference = new VkAttachmentReference;
+		attachmentReference->attachment = (*referencePtr)->attachment;
+		attachmentReference->layout = (*referencePtr)->layout;
+
+		*referencePtr = attachmentReference;
+
+		m_attachmentReferencePtrs.push_back(attachmentReference);
+	}
+
+	void RenderPass::addSubpassDescription(const VkSubpassDescription& description) {
+		m_subpassDescriptions.push_back(description);
+	}
+
+	void RenderPass::addSubpassDependency(const VkSubpassDependency& dependency) {
+		m_subpassDependencies.push_back(dependency);
 	}
 
 	/*Framebuffer*/
@@ -1086,6 +1101,7 @@ namespace vk
 	{
 		m_shaderStages.push_back(shaderStage);
 	}
+
 	void Pipeline::delShader(int index)
 	{
 		m_shaderStages.erase(m_shaderStages.begin() + index);
@@ -1095,6 +1111,7 @@ namespace vk
 	{
 		m_vertexInputBindingDescriptions.push_back(vertexInputBindingDescription);
 	}
+
 	void Pipeline::delVertexInputBindingDescription(int index)
 	{
 		m_vertexInputBindingDescriptions.erase(m_vertexInputBindingDescriptions.begin() + index);
@@ -1104,6 +1121,7 @@ namespace vk
 	{
 		m_vertexInputAttributeDescriptions.push_back(vertexInputAttributeDescription);
 	}
+
 	void Pipeline::delVertexInputAttrubuteDescription(int index)
 	{
 		m_vertexInputAttributeDescriptions.erase(m_vertexInputAttributeDescriptions.begin() + index);
@@ -1113,6 +1131,7 @@ namespace vk
 	{
 		m_viewports.push_back(viewport);
 	}
+
 	void Pipeline::delViewport(int index)
 	{
 		m_viewports.erase(m_viewports.begin() + index);
@@ -1122,9 +1141,20 @@ namespace vk
 	{
 		m_scissors.push_back(scissor);
 	}
+
 	void Pipeline::delScissor(int index)
 	{
 		m_scissors.erase(m_scissors.begin() + index);
+	}
+
+	void Pipeline::enableDepthTest() {
+		m_depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;
+		m_depthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
+	}
+
+	void Pipeline::disableDepthTest() {
+		m_depthStencilStateCreateInfo.depthTestEnable = VK_FALSE;
+		m_depthStencilStateCreateInfo.depthWriteEnable = VK_FALSE;
 	}
 
 	void createCommandPool(VkDevice &device, size_t queueFamily, VkCommandPool &commandPool)
@@ -1132,7 +1162,7 @@ namespace vk
 		VkCommandPoolCreateInfo createInfo;
 		createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		createInfo.pNext = nullptr;
-		createInfo.flags = 0;
+		createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		createInfo.queueFamilyIndex = queueFamily;
 
 		vkCreateCommandPool(device, &createInfo, nullptr, &commandPool);
