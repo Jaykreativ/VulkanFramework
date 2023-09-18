@@ -50,6 +50,8 @@ namespace vk
 		const VkCommandBuffer& getVkCommandBuffer() { return m_commandBuffer; }
 
 	private:
+		bool m_isAlloc = false;
+
 		VkCommandBuffer m_commandBuffer;
 
 		std::vector<VkSemaphore> m_waitSemaphores;

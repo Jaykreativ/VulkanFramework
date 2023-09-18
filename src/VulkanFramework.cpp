@@ -104,26 +104,25 @@ namespace vk
 	}
 
 	/*CommandBuffer*/
-	CommandBuffer::CommandBuffer()
-	{
-		this->allocate();
-	}
+	CommandBuffer::CommandBuffer(){}
 
 	CommandBuffer::CommandBuffer(bool autoAllocate)
 	{
-		if (autoAllocate)
-		{
-			this->allocate();
-		}
+		if (autoAllocate) this->allocate();
 	}
 
 	CommandBuffer::~CommandBuffer()
 	{
+		if (!m_isAlloc) return;
+
 		vkFreeCommandBuffers(vk::device, vk::commandPool, 1, &m_commandBuffer);
+		m_isAlloc = false;
 	}
 
 	void CommandBuffer::allocate()
 	{
+		if (m_isAlloc) return;
+
 		VkCommandBufferAllocateInfo allocateInfo;
 		allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocateInfo.pNext = nullptr;
@@ -133,10 +132,16 @@ namespace vk
 
 		VkResult result = vkAllocateCommandBuffers(vk::device, &allocateInfo, &m_commandBuffer);
 		VK_ASSERT(result);
+		m_isAlloc = true;
 	}
 
 	void CommandBuffer::begin(VkCommandBufferUsageFlags usageFlags)
 	{
+		if (!m_isAlloc) {
+			std::cerr << "CommandBuffer: " << this << " begin has been called but the buffer wasn't allocated\n";
+			throw std::runtime_error("ERROR: CommandBuffer.begin()");
+		}
+
 		VkCommandBufferBeginInfo beginInfo;
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.pNext = nullptr;
@@ -179,7 +184,7 @@ namespace vk
 		submit(&queue);
 		vkQueueWaitIdle(queue);
 	}
-	void CommandBuffer::submit(VkQueue *queue)
+	void CommandBuffer::submit(VkQueue* queue)
 	{
 		submit(queue, VK_NULL_HANDLE);
 	}
@@ -312,7 +317,7 @@ namespace vk
 
 	void Buffer::copyBuffer(VkBuffer dst, VkBuffer src, VkDeviceSize size)
 	{
-		CommandBuffer commandBuffer = CommandBuffer();
+		CommandBuffer commandBuffer = CommandBuffer(true);
 		commandBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
 		VkBufferCopy bufferCopy;
@@ -420,7 +425,7 @@ namespace vk
 
 	void Image::changeLayout(VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask)
 	{
-		vk::CommandBuffer cmdBuffer = vk::CommandBuffer();
+		vk::CommandBuffer cmdBuffer = vk::CommandBuffer(true);
 		cmdBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
 		VkImageMemoryBarrier imageMemoryBarrier;
