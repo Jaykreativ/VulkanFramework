@@ -408,11 +408,12 @@ namespace vk
 		viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
 		viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
 		viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-		viewCreateInfo.subresourceRange.aspectMask = m_aspect;
-		viewCreateInfo.subresourceRange.baseMipLevel = 0;
-		viewCreateInfo.subresourceRange.levelCount = m_mipLevelCount;
-		viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-		viewCreateInfo.subresourceRange.layerCount = 1;
+		m_subresourceRange.aspectMask = m_aspect;
+		m_subresourceRange.baseMipLevel = 0;
+		m_subresourceRange.levelCount = m_mipLevelCount;
+		m_subresourceRange.baseArrayLayer = 0;
+		m_subresourceRange.layerCount = 1;
+		viewCreateInfo.subresourceRange = m_subresourceRange;
 
 		vkCreateImageView(vk::device, &viewCreateInfo, nullptr, &m_imageView);
 	}

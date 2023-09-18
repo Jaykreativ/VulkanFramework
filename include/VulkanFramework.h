@@ -148,6 +148,8 @@ namespace vk
 
 		VkImageView getVkImageView() { return m_imageView; }
 
+		VkImageSubresourceRange getSubresourceRange() { return m_subresourceRange; }
+
 	private:
 		bool m_isInit = false;
 		bool m_isAlloc = false;
@@ -159,13 +161,14 @@ namespace vk
 
 		VkImageType m_type = VK_IMAGE_TYPE_2D;
 		VkImageViewType m_viewType = VK_IMAGE_VIEW_TYPE_2D;
-		VkFormat m_format = VK_USED_SCREENCOLOR_FORMAT;
+		VkFormat m_format;
 		VkImageAspectFlags m_aspect = VK_IMAGE_ASPECT_NONE;
 		VkExtent3D m_extent;
 		uint32_t m_mipLevelCount = 1;
 		VkSampleCountFlagBits m_samples = VK_SAMPLE_COUNT_1_BIT;
 		VkImageTiling m_tiling = VK_IMAGE_TILING_OPTIMAL;
 		VkImageUsageFlags m_usage;
+		VkImageSubresourceRange m_subresourceRange;
 		VkImageLayout m_currentLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
 
 	};
