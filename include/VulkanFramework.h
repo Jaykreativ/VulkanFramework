@@ -158,8 +158,6 @@ namespace vk
 
 		uint32_t getMipLevelCount() { return m_mipLevelCount; }
 
-		static void changeLayout(vk::Image& image, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
-
 	private:
 		bool m_isInit = false;
 		bool m_isAlloc = false;
@@ -470,6 +468,8 @@ namespace vk
 
 	void acquireNextImage(VkSwapchainKHR swapchain, VkSemaphore semaphore, VkFence fence, uint32_t* pImageIndex);
 	void acquireNextImage(Swapchain& swapchain, VkSemaphore semaphore, VkFence fence, uint32_t* pImageIndex);
+
+	void changeImageLayout(vk::Image& image, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
 
 	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex);
 	void queuePresent(VkQueue queue, Swapchain& swapchain, uint32_t imageIndex);
