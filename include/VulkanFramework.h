@@ -152,6 +152,14 @@ namespace vk
 
 		VkImageSubresourceRange getSubresourceRange() { return m_subresourceRange; }
 
+		VkImageLayout getLayout() { return m_currentLayout; }
+
+		VkImageAspectFlags getAspect() { return m_aspect; }
+
+		uint32_t getMipLevelCount() { return m_mipLevelCount; }
+
+		static void changeLayout(vk::Image& image, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
+
 	private:
 		bool m_isInit = false;
 		bool m_isAlloc = false;

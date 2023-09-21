@@ -425,6 +425,10 @@ namespace vk
 
 	void Image::changeLayout(VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask)
 	{
+		changeLayout(*this, layout, srcAccessMask, dstAccessMask);
+	}
+
+	static void changeLayout(vk::Image& image, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask) {
 		vk::CommandBuffer cmdBuffer = vk::CommandBuffer(true);
 		cmdBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
@@ -433,14 +437,14 @@ namespace vk
 		imageMemoryBarrier.pNext = nullptr;
 		imageMemoryBarrier.srcAccessMask = srcAccessMask;
 		imageMemoryBarrier.dstAccessMask = dstAccessMask;
-		imageMemoryBarrier.oldLayout = m_currentLayout;
+		imageMemoryBarrier.oldLayout = image.getLayout();
 		imageMemoryBarrier.newLayout = layout;
 		imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		imageMemoryBarrier.image = m_image;
-		imageMemoryBarrier.subresourceRange.aspectMask = m_aspect;
+		imageMemoryBarrier.image = image;
+		imageMemoryBarrier.subresourceRange.aspectMask = image.getAspect();
 		imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-		imageMemoryBarrier.subresourceRange.levelCount = m_mipLevelCount;
+		imageMemoryBarrier.subresourceRange.levelCount = image.getMipLevelCount();
 		imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 		imageMemoryBarrier.subresourceRange.layerCount = 1;
 
