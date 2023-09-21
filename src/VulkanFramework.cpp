@@ -176,17 +176,19 @@ namespace vk
 	void CommandBuffer::submit(VkFence fence) {
 		VkQueue queue;
 		submit(&queue, fence);
-		vkQueueWaitIdle(queue);
 	}
 	void CommandBuffer::submit()
 	{
 		VkQueue queue;
-		submit(&queue);
-		vkQueueWaitIdle(queue);
+		VkFence fence; vk::createFence(&fence);
+		submit(&queue, fence);
+		vk::waitForFence(fence); vk::destroyFence(fence);
 	}
 	void CommandBuffer::submit(VkQueue* queue)
 	{
-		submit(queue, VK_NULL_HANDLE);
+		VkFence fence; vk::createFence(&fence);
+		submit(queue, fence);
+		vk::waitForFence(fence); vk::destroyFence(fence);
 	}
 
 	void CommandBuffer::addWaitSemaphore(VkSemaphore waitSemaphore, VkPipelineStageFlags waitDstStageMask) {
@@ -424,7 +426,7 @@ namespace vk
 	}
 
 	void Image::changeLayout(VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask){
-		vk::changeLayout(*this, layout, srcAccessMask, dstAccessMask);
+		vk::changeImageLayout(*this, layout, srcAccessMask, dstAccessMask);
 	}
 
 	/*Surface*/
@@ -1218,7 +1220,10 @@ namespace vk
 		VK_ASSERT(result);
 	}
 
-	void changeLayout(vk::Image& image, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask) {
+	void changeImageLayout(vk::Image& image, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask) {
+		changeImageLayout(image, image.getSubresourceRange(), image.getLayout(), layout, srcAccessMask, dstAccessMask);
+	}
+	void changeImageLayout(VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout currentLayout, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask) {
 		vk::CommandBuffer cmdBuffer = vk::CommandBuffer(true);
 		cmdBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
@@ -1227,16 +1232,12 @@ namespace vk
 		imageMemoryBarrier.pNext = nullptr;
 		imageMemoryBarrier.srcAccessMask = srcAccessMask;
 		imageMemoryBarrier.dstAccessMask = dstAccessMask;
-		imageMemoryBarrier.oldLayout = image.getLayout();
+		imageMemoryBarrier.oldLayout = currentLayout;
 		imageMemoryBarrier.newLayout = layout;
 		imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		imageMemoryBarrier.image = image;
-		imageMemoryBarrier.subresourceRange.aspectMask = image.getAspect();
-		imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-		imageMemoryBarrier.subresourceRange.levelCount = image.getMipLevelCount();
-		imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-		imageMemoryBarrier.subresourceRange.layerCount = 1;
+		imageMemoryBarrier.subresourceRange = subresourceRange;
 
 		vkCmdPipelineBarrier(cmdBuffer.getVkCommandBuffer(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
 
