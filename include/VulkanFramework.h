@@ -81,6 +81,7 @@ namespace vk
 
 		void unmap();
 
+		void uploadData(vk::Buffer* buffer);
 		void uploadData(uint32_t size, void* data);
 
 		void setUsage(VkBufferUsageFlags usage) { m_usage = usage; }
@@ -95,7 +96,7 @@ namespace vk
 
 		VkMemoryPropertyFlags getMemoryPropertyFlags() { return m_memoryPropertyFlags; }
 
-		static void copyBuffer(VkBuffer dst, VkBuffer src, VkDeviceSize size);
+		static void copyBuffer(vk::Buffer* dst, vk::Buffer* src, VkDeviceSize size);
 
 	private:
 		bool m_isInit = false;

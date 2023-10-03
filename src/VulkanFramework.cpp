@@ -298,6 +298,13 @@ namespace vk
 		vkUnmapMemory(vk::device, m_deviceMemory);
 	}
 
+	void Buffer::uploadData(vk::Buffer* buffer) {
+		if ((buffer->m_usage & VK_BUFFER_USAGE_TRANSFER_SRC_BIT) != VK_BUFFER_USAGE_TRANSFER_SRC_BIT) {
+			std::cerr << "Buffer cant be source of upload transfer: enable VK_BUFFER_USAGE_TRANSFER_SRC_BIT\n";
+			throw std::runtime_error("Buffer cant be source of upload transfer");
+		}
+		Buffer::copyBuffer(this, buffer, m_size);
+	}
 	void Buffer::uploadData(uint32_t size, void *data)
 	{
 		if ((m_usage & VK_BUFFER_USAGE_TRANSFER_DST_BIT) != VK_BUFFER_USAGE_TRANSFER_DST_BIT)
@@ -314,10 +321,10 @@ namespace vk
 		memcpy(rawData, data, size);
 		stagingBuffer.unmap();
 
-		Buffer::copyBuffer(m_buffer, stagingBuffer.getVkBuffer(), m_size);
+		Buffer::copyBuffer(this, &stagingBuffer, m_size);
 	}
 
-	void Buffer::copyBuffer(VkBuffer dst, VkBuffer src, VkDeviceSize size)
+	void Buffer::copyBuffer(vk::Buffer* dst, vk::Buffer* src, VkDeviceSize size)
 	{
 		CommandBuffer commandBuffer = CommandBuffer(true);
 		commandBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -326,7 +333,7 @@ namespace vk
 		bufferCopy.srcOffset = 0;
 		bufferCopy.dstOffset = 0;
 		bufferCopy.size = size;
-		vkCmdCopyBuffer(commandBuffer.getVkCommandBuffer(), src, dst, 1, &bufferCopy);
+		vkCmdCopyBuffer(commandBuffer.getVkCommandBuffer(), *src, *dst, 1, &bufferCopy);
 
 		commandBuffer.end();
 		commandBuffer.submit();
