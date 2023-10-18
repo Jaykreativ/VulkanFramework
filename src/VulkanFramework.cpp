@@ -393,6 +393,8 @@ namespace vk
 			return;
 		m_isAlloc = true;
 
+		m_memoryProperties = memoryProperties;
+
 		VkMemoryRequirements memoryRequirements;
 		vkGetImageMemoryRequirements(vk::device, m_image, &memoryRequirements);
 
@@ -432,8 +434,20 @@ namespace vk
 		vkCreateImageView(vk::device, &viewCreateInfo, nullptr, &m_imageView);
 	}
 
+	void Image::update() {
+		if (!m_isInit || !m_isAlloc || !m_isViewInit) return;
+		this->~Image();
+		this->init();
+		this->allocate(m_memoryProperties);
+		this->initView();
+	}
+
+	void Image::cmdChangeLayout(VkCommandBuffer cmd, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask) {
+		vk::cmdChangeImageLayout(cmd, *this, m_subresourceRange, m_currentLayout, layout, srcAccessMask, dstAccessMask);
+	}
+
 	void Image::changeLayout(VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask){
-		vk::changeImageLayout(*this, layout, srcAccessMask, dstAccessMask);
+		vk::changeImageLayout(*this, m_subresourceRange, m_currentLayout, layout, srcAccessMask, dstAccessMask);
 	}
 
 	/*Surface*/
@@ -558,8 +572,18 @@ namespace vk
 
 	void Swapchain::update()
 	{
-		this->~Swapchain();
-		init();
+		if (!m_isInit) return;
+
+		for (VkImageView imageView : m_imageViews)
+		{
+			vkDestroyImageView(vk::device, imageView, nullptr);
+		}
+		VkSwapchainKHR oldSwapchain = m_swapchain;
+
+		m_isInit = false;
+		this->init();
+
+		vkDestroySwapchainKHR(vk::device, oldSwapchain, nullptr);
 	}
 
 	VkImage Swapchain::getImage(uint32_t index) {
@@ -907,11 +931,7 @@ namespace vk
 
 	Framebuffer::~Framebuffer()
 	{
-		if (!m_isInit)
-			return;
-		m_isInit = false;
-
-		vkDestroyFramebuffer(vk::device, m_framebuffer, nullptr);
+		destroy();
 	}
 
 	void Framebuffer::init()
@@ -932,6 +952,21 @@ namespace vk
 		createInfo.layers = 1;
 
 		vkCreateFramebuffer(vk::device, &createInfo, nullptr, &m_framebuffer);
+	}
+
+	void Framebuffer::destroy() {
+		if (!m_isInit)
+			return;
+		m_isInit = false;
+
+		vkDestroyFramebuffer(vk::device, m_framebuffer, nullptr);
+	}
+
+	void Framebuffer::update() {
+		if (!m_isInit) return;
+
+		this->destroy();
+		this->init();
 	}
 
 	/*Pipeline*/
@@ -1227,13 +1262,7 @@ namespace vk
 		VK_ASSERT(result);
 	}
 
-	void changeImageLayout(vk::Image& image, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask) {
-		changeImageLayout(image, image.getSubresourceRange(), image.getLayout(), layout, srcAccessMask, dstAccessMask);
-	}
-	void changeImageLayout(VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout currentLayout, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask) {
-		vk::CommandBuffer cmdBuffer = vk::CommandBuffer(true);
-		cmdBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-
+	void cmdChangeImageLayout(VkCommandBuffer cmd, VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout currentLayout, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask) {
 		VkImageMemoryBarrier imageMemoryBarrier;
 		imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		imageMemoryBarrier.pNext = nullptr;
@@ -1246,8 +1275,13 @@ namespace vk
 		imageMemoryBarrier.image = image;
 		imageMemoryBarrier.subresourceRange = subresourceRange;
 
-		vkCmdPipelineBarrier(cmdBuffer.getVkCommandBuffer(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
 
+	}
+	void changeImageLayout(VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout currentLayout, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask) {
+		vk::CommandBuffer cmdBuffer = vk::CommandBuffer(true);
+		cmdBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+		cmdChangeImageLayout(cmdBuffer, image, subresourceRange, currentLayout, layout, srcAccessMask, dstAccessMask);
 		cmdBuffer.end();
 		cmdBuffer.submit();
 	}

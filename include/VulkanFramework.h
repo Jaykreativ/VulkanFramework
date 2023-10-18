@@ -124,6 +124,9 @@ namespace vk
 
 		void initView();
 
+		void update();
+
+		void cmdChangeLayout(VkCommandBuffer cmd, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
 		void changeLayout(VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
 
 		void setType(VkImageType type) { m_type = type; }
@@ -144,6 +147,10 @@ namespace vk
 		void setHeight(uint32_t height) { m_extent.height = height; }
 
 		void setDepth(uint32_t depth) { m_extent.depth = depth; }
+
+		void setMemoryProperties(VkMemoryPropertyFlags memoryProperties) {
+			m_memoryProperties = memoryProperties;
+		}
 
 		VkImage getVkImage() { return m_image; }
 
@@ -179,7 +186,7 @@ namespace vk
 		VkImageUsageFlags m_usage;
 		VkImageSubresourceRange m_subresourceRange;
 		VkImageLayout m_currentLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
-
+		VkMemoryPropertyFlags m_memoryProperties = 0;
 	};
 	
 	class Surface {
@@ -366,6 +373,10 @@ namespace vk
 
 		void init();
 
+		void destroy();
+
+		void update();
+
 		void addAttachment(VkImageView attachment) { m_attachments.push_back(attachment); }
 
 		void delAttachment(int index) { m_attachments.erase(m_attachments.begin() + index); }
@@ -470,7 +481,7 @@ namespace vk
 	void acquireNextImage(VkSwapchainKHR swapchain, VkSemaphore semaphore, VkFence fence, uint32_t* pImageIndex);
 	void acquireNextImage(Swapchain& swapchain, VkSemaphore semaphore, VkFence fence, uint32_t* pImageIndex);
 
-	void changeImageLayout(vk::Image& image, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
+	void cmdChangeImageLayout(VkCommandBuffer cmd, VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout currentLayout, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
 	void changeImageLayout(VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout currentLayout, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
 
 	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex);
@@ -487,6 +498,7 @@ namespace vk
 	void createFence(VkFence* fence);
 	void destroyFence(VkFence fence);
 
+	void resetFence(VkFence fence);
 	void waitForFence(VkFence fence);
 }
 
