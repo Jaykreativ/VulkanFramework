@@ -500,9 +500,14 @@ namespace vk
 
 	void resetFence(VkFence fence);
 	void waitForFence(VkFence fence);
+
+	struct initInfo {
+		const char* applicationName;
+		uint32_t deviceIndex = 0;
+	};
 }
 
-void initVulkan(const char* applicationName);
+void initVulkan(vk::initInfo info);
 
 void terminateVulkan();
 

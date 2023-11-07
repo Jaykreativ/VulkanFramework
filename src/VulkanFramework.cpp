@@ -20,7 +20,7 @@ namespace vk
 		applicationInfo.pApplicationName = applicationName;
 		applicationInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
 		// TODO specify engine name
-		applicationInfo.pEngineName = "RTXEngine";
+		applicationInfo.pEngineName = "VulkanGraphicsEngine";
 		applicationInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
 		applicationInfo.apiVersion = VK_API_VERSION_1_3;
 
@@ -1336,7 +1336,7 @@ namespace vk
 	}
 }
 
-void initVulkan(const char *applicationName)
+void initVulkan(vk::initInfo info)
 {
 	std::vector<const char *> enabledInstanceLayers = {
 #if _DEBUG
@@ -1350,8 +1350,8 @@ void initVulkan(const char *applicationName)
 	for (size_t i = 0; i < amountOfRequiredGLFWExtensions; i++)
 		enabledInstanceExtensions.push_back(glfwExtensions[i]);
 
-	vk::createInstance(vk::instance, enabledInstanceLayers, enabledInstanceExtensions, applicationName); // Create Instance
-	vk::physicalDevice = vkUtils::getAllPhysicalDevices(vk::instance)[VK_INDEX_OF_USED_PHYSICAL_DEVICE];
+	vk::createInstance(vk::instance, enabledInstanceLayers, enabledInstanceExtensions, info.applicationName); // Create Instance
+	vk::physicalDevice = vkUtils::getAllPhysicalDevices(vk::instance)[info.deviceIndex];
 
 	VkPhysicalDeviceFeatures usedDeviceFeatures = {};
 	std::vector<const char *> enabledDeviceLayers = {};
