@@ -16,6 +16,7 @@
 #define VK_INDEX_OF_USED_PHYSICAL_DEVICE 0
 #define VK_PREFERED_QUEUE_FAMILY 0
 #define VK_PREFERED_AMOUNT_OF_QUEUES 4
+#define VK_MIN_AMOUNT_OF_SWAPCHAIN_IMAGES 3
 #define VK_USED_SCREENCOLOR_FORMAT VK_FORMAT_B8G8R8A8_UNORM //TODO civ
 
 namespace vk
@@ -500,6 +501,14 @@ namespace vk
 
 	void resetFence(VkFence fence);
 	void waitForFence(VkFence fence);
+
+	VkInstance getInstance();
+
+	VkPhysicalDevice getPhysicalDevice();
+
+	VkDevice getDevice();
+
+	uint32_t getQueueFamily();
 
 	struct initInfo {
 		const char* applicationName;

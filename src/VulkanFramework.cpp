@@ -504,7 +504,7 @@ namespace vk
 		createInfo.pNext = nullptr;
 		createInfo.flags = 0;
 		createInfo.surface = m_surface;
-		createInfo.minImageCount = 3;
+		createInfo.minImageCount = VK_MIN_AMOUNT_OF_SWAPCHAIN_IMAGES;
 		createInfo.imageFormat = m_imageFormat;
 		createInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 		createInfo.imageExtent = m_imageExtent;
@@ -1182,6 +1182,22 @@ namespace vk
 	void Pipeline::disableDepthTest() {
 		m_depthStencilStateCreateInfo.depthTestEnable = VK_FALSE;
 		m_depthStencilStateCreateInfo.depthWriteEnable = VK_FALSE;
+	}
+
+	VkInstance getInstance() {
+		return instance;
+	}
+
+	VkPhysicalDevice getPhysicalDevice() {
+		return physicalDevice;
+	}
+
+	VkDevice getDevice() {
+		return device;
+	}
+
+	uint32_t getQueueFamily() {
+		return queueFamily;
 	}
 
 	void createCommandPool(VkDevice &device, size_t queueFamily, VkCommandPool &commandPool)
