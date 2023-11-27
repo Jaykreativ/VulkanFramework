@@ -111,13 +111,7 @@ namespace vk
 		if (autoAllocate) this->allocate();
 	}
 
-	CommandBuffer::~CommandBuffer()
-	{
-		if (!m_isAlloc) return;
-
-		vkFreeCommandBuffers(vk::device, vk::commandPool, 1, &m_commandBuffer);
-		m_isAlloc = false;
-	}
+	CommandBuffer::~CommandBuffer(){}
 
 	void CommandBuffer::allocate()
 	{
@@ -133,6 +127,13 @@ namespace vk
 		VkResult result = vkAllocateCommandBuffers(vk::device, &allocateInfo, &m_commandBuffer);
 		VK_ASSERT(result);
 		m_isAlloc = true;
+	}
+
+	void CommandBuffer::free() {
+		if (!m_isAlloc) return;
+		m_isAlloc = false;
+
+		vkFreeCommandBuffers(vk::device, vk::commandPool, 1, &m_commandBuffer);
 	}
 
 	void CommandBuffer::begin(VkCommandBufferUsageFlags usageFlags)
@@ -206,23 +207,10 @@ namespace vk
 		: m_size(size), m_usage(usage)
 	{}
 
-	Buffer::~Buffer()
-	{
-		if (m_isAlloc)
-		{
-			m_isAlloc = false;
-			vkFreeMemory(vk::device, m_deviceMemory, nullptr);
-		}
-
-		if (m_isInit)
-		{
-			m_isInit = false;
-			vkDestroyBuffer(vk::device, m_buffer, nullptr);
-		}
-	}
+	Buffer::~Buffer(){}
 
 	Buffer& Buffer::operator=(const Buffer& other) {
-		this->~Buffer();
+		this->destroy();
 
 		m_size = other.m_size;
 		m_usage = other.m_usage;
@@ -255,6 +243,20 @@ namespace vk
 
 		VkResult result = vkCreateBuffer(vk::device, &createInfo, nullptr, &m_buffer);
 		VK_ASSERT(result);
+	}
+
+	void Buffer::destroy() {
+		if (m_isAlloc)
+		{
+			m_isAlloc = false;
+			vkFreeMemory(vk::device, m_deviceMemory, nullptr);
+		}
+
+		if (m_isInit)
+		{
+			m_isInit = false;
+			vkDestroyBuffer(vk::device, m_buffer, nullptr);
+		}
 	}
 
 	void Buffer::allocate(VkMemoryPropertyFlags memoryPropertyFlags)
@@ -322,6 +324,7 @@ namespace vk
 		stagingBuffer.unmap();
 
 		Buffer::copyBuffer(this, &stagingBuffer, m_size);
+		stagingBuffer.destroy();
 	}
 
 	void Buffer::copyBuffer(vk::Buffer* dst, vk::Buffer* src, VkDeviceSize size)
@@ -337,6 +340,7 @@ namespace vk
 
 		commandBuffer.end();
 		commandBuffer.submit();
+		commandBuffer.free();
 	}
 
 	/*Image*/
@@ -1299,7 +1303,7 @@ namespace vk
 		cmdBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 		cmdChangeImageLayout(cmdBuffer, image, subresourceRange, currentLayout, layout, srcAccessMask, dstAccessMask);
 		cmdBuffer.end();
-		cmdBuffer.submit();
+		cmdBuffer.submit(); cmdBuffer.free();
 	}
 
 	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex)

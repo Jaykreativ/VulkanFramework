@@ -19,6 +19,8 @@
 #define VK_MIN_AMOUNT_OF_SWAPCHAIN_IMAGES 3
 #define VK_USED_SCREENCOLOR_FORMAT VK_FORMAT_B8G8R8A8_UNORM //TODO civ
 
+//TODO add destroy/free functions instead of using the destructor
+
 namespace vk
 {
 	class CommandBuffer {
@@ -31,6 +33,8 @@ namespace vk
 		operator VkCommandBuffer() const { return m_commandBuffer; }
 
 		void allocate();
+
+		void free();
 
 		void begin(VkCommandBufferUsageFlags usageFlags);
 
@@ -72,6 +76,8 @@ namespace vk
 		operator VkBuffer() { return m_buffer; }
 
 		void init();
+
+		void destroy();
 
 		void allocate(VkMemoryPropertyFlags memoryPropertyFlags);
 
