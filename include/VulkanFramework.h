@@ -40,10 +40,11 @@ namespace vk
 
 		void end();
 
-		void submit();
-		void submit(VkQueue* queue);
-		void submit(VkFence fence);
+		void submit(VkQueue* queue, VkFence fence, uint32_t waitSemaphoreCount, VkSemaphore* waitSemaphores, VkPipelineStageFlags* waitDstStageMask, uint32_t signalSemaphoreCount, VkSemaphore* signalSemaphores);
 		void submit(VkQueue* queue, VkFence fence);
+		void submit(VkFence fence);
+		void submit(VkQueue* queue);
+		void submit();
 
 		void addWaitSemaphore(VkSemaphore waitSemaphore, VkPipelineStageFlags waitDstStageMask);
 
