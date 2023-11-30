@@ -493,9 +493,7 @@ namespace vk
 	void changeImageLayout(VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout currentLayout, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
 
 	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex);
-	void queuePresent(VkQueue queue, Swapchain& swapchain, uint32_t imageIndex);
 	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex, VkSemaphore waitSemaphore);
-	void queuePresent(VkQueue queue, Swapchain& swapchain, uint32_t imageIndex, VkSemaphore waitSemaphore);
 
 	void deviceWaitIdle();
 	void allQueuesWaitIdle();

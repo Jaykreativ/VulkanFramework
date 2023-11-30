@@ -1336,10 +1336,6 @@ namespace vk
 		VkResult result = vkQueuePresentKHR(queue, &presentInfo);
 		VK_ASSERT(result);
 	}
-	void queuePresent(VkQueue queue, Swapchain &swapchain, uint32_t imageIndex)
-	{
-		queuePresent(queue, swapchain.getVkSwapchainKHR(), imageIndex);
-	}
 	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex, VkSemaphore waitSemaphore) {
 		VkPresentInfoKHR presentInfo;
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -1353,9 +1349,6 @@ namespace vk
 
 		VkResult result = vkQueuePresentKHR(queue, &presentInfo);
 		VK_ASSERT(result);
-	}
-	void queuePresent(VkQueue queue, Swapchain& swapchain, uint32_t imageIndex, VkSemaphore waitSemaphore) {
-		queuePresent(queue, swapchain.getVkSwapchainKHR(), imageIndex, waitSemaphore);
 	}
 
 	void deviceWaitIdle()
