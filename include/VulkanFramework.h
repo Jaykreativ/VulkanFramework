@@ -40,10 +40,11 @@ namespace vk
 
 		void end();
 
-		void submit();
-		void submit(VkQueue* queue);
-		void submit(VkFence fence);
+		void submit(VkQueue* queue, VkFence fence, uint32_t waitSemaphoreCount, VkSemaphore* waitSemaphores, VkPipelineStageFlags* waitDstStageMask, uint32_t signalSemaphoreCount, VkSemaphore* signalSemaphores);
 		void submit(VkQueue* queue, VkFence fence);
+		void submit(VkFence fence);
+		void submit(VkQueue* queue);
+		void submit();
 
 		void addWaitSemaphore(VkSemaphore waitSemaphore, VkPipelineStageFlags waitDstStageMask);
 
@@ -497,9 +498,7 @@ namespace vk
 	void changeImageLayout(VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout currentLayout, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
 
 	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex);
-	void queuePresent(VkQueue queue, Swapchain& swapchain, uint32_t imageIndex);
 	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex, VkSemaphore waitSemaphore);
-	void queuePresent(VkQueue queue, Swapchain& swapchain, uint32_t imageIndex, VkSemaphore waitSemaphore);
 
 	void deviceWaitIdle();
 	void allQueuesWaitIdle();
