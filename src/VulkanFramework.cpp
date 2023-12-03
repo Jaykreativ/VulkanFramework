@@ -760,7 +760,7 @@ namespace vk
 
 		{
 			bool typeAlreadyExists = false;
-			for (VkDescriptorPoolSize poolSize : m_poolSizes)
+			for (VkDescriptorPoolSize& poolSize : m_poolSizes)
 			{
 				if (poolSize.type == descriptor.type)
 				{
@@ -1085,8 +1085,8 @@ namespace vk
 		layoutCreateInfo.flags = 0;
 		layoutCreateInfo.setLayoutCount = m_setLayouts.size();
 		layoutCreateInfo.pSetLayouts = m_setLayouts.data();
-		layoutCreateInfo.pushConstantRangeCount = 0;
-		layoutCreateInfo.pPushConstantRanges = nullptr;
+		layoutCreateInfo.pushConstantRangeCount = m_pushConstantRanges.size();
+		layoutCreateInfo.pPushConstantRanges = m_pushConstantRanges.data();
 
 		vkCreatePipelineLayout(vk::device, &layoutCreateInfo, nullptr, &m_pipelineLayout);
 

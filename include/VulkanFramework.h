@@ -448,6 +448,10 @@ namespace vk
 
 		void delDynamicState(int index) { m_dynamicStates.erase(m_dynamicStates.begin() + index); }
 
+		void addPushConstantRange(VkPushConstantRange pushConstantRange) { m_pushConstantRanges.push_back(pushConstantRange); }
+		
+		void delPushConstantRange(int index) { m_pushConstantRanges.erase(m_pushConstantRanges.begin() + index); }
+
 		void setRenderPass(VkRenderPass renderPass) { m_renderPass = renderPass; }
 		void setRenderPass(vk::RenderPass& renderPass) { setRenderPass(renderPass.getVkRenderPass()); }
 
@@ -473,6 +477,7 @@ namespace vk
 		std::vector<VkViewport> m_viewports;
 		std::vector<VkRect2D> m_scissors;
 		std::vector<VkDynamicState> m_dynamicStates;
+		std::vector<VkPushConstantRange> m_pushConstantRanges;
 
 		VkPipelineVertexInputStateCreateInfo   m_vertexInputStateCreateInfo;
 		VkPipelineInputAssemblyStateCreateInfo m_inputAssemblyStateCreateInfo;
