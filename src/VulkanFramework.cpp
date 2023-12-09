@@ -1019,8 +1019,8 @@ namespace vk
 		m_rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
 		m_rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
 		m_rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
-		m_rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_NONE;
-		m_rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+		m_rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+		m_rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
 		m_rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
 		m_rasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
 		m_rasterizationStateCreateInfo.depthBiasClamp = 0.0f;
@@ -1311,7 +1311,6 @@ namespace vk
 		imageMemoryBarrier.subresourceRange = subresourceRange;
 
 		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
-
 	}
 	void changeImageLayout(VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout currentLayout, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask) {
 		vk::CommandBuffer cmdBuffer = vk::CommandBuffer(true);
