@@ -948,10 +948,7 @@ namespace vk
 	{
 	}
 
-	Framebuffer::~Framebuffer()
-	{
-		destroy();
-	}
+	Framebuffer::~Framebuffer(){}
 
 	void Framebuffer::init()
 	{
