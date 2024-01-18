@@ -7,6 +7,14 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+//define extension functions
+extern PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR_;
+#define vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR_
+extern PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR_;
+#define vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR_
+extern PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR_;
+#define vkCmdTraceRaysKHR vkCmdTraceRaysKHR_
+
 #define PRINT_PHYSICAL_DEVICES true
 #define PRINT_QUEUE_FAMILIES  false
 #define PRINT_AVAILABLE_DEVICE_EXTENSIONS false
@@ -174,6 +182,8 @@ namespace vk
 
 		uint32_t getMipLevelCount() { return m_mipLevelCount; }
 
+		VkExtent3D getExtent() { return m_extent; }
+
 	private:
 		bool m_isInit = false;
 		bool m_isAlloc = false;
@@ -187,7 +197,7 @@ namespace vk
 		VkImageViewType m_viewType = VK_IMAGE_VIEW_TYPE_2D;
 		VkFormat m_format;
 		VkImageAspectFlags m_aspect = VK_IMAGE_ASPECT_NONE;
-		VkExtent3D m_extent;
+		VkExtent3D m_extent = {1, 1, 1};
 		uint32_t m_mipLevelCount = 1;
 		VkSampleCountFlagBits m_samples = VK_SAMPLE_COUNT_1_BIT;
 		VkImageTiling m_tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -264,6 +274,7 @@ namespace vk
 	};
 
 	struct Descriptor {//TODO descriptor count
+		const void*                   pNext;
 		VkDescriptorType              type;
 		VkShaderStageFlags            stages;
 		uint32_t                      binding;
@@ -522,7 +533,58 @@ namespace vk
 
 	struct initInfo {
 		const char* applicationName;
-		uint32_t deviceIndex = 0;
+		uint32_t    deviceIndex = 0;
+	};
+
+	class RtPipeline {
+	public:
+		RtPipeline();
+		~RtPipeline();
+
+		operator VkPipeline() { return m_pipeline; }
+
+		void init();
+
+		void initShaderBindingTable();
+
+		void destroy();
+
+		void addShader(const VkPipelineShaderStageCreateInfo& shaderStage);
+
+		void delShader(uint32_t index);
+
+		void addGroup(const VkRayTracingShaderGroupCreateInfoKHR& group);
+
+		void delGroup(uint32_t index);
+
+		void addDescriptorSetLayout(VkDescriptorSetLayout setLayout);
+
+		void delDescriptorSetLayout(int index);
+
+		VkPipeline getVkPipeline() { return m_pipeline; }
+
+		VkPipelineLayout getVkPipelineLayout() { return m_pipelineLayout; }
+
+		VkStridedDeviceAddressRegionKHR getRayGenRegion() { return m_rgenRegion; }
+		VkStridedDeviceAddressRegionKHR getMissRegion() { return m_missRegion; }
+		VkStridedDeviceAddressRegionKHR getHitRegion() { return m_hitRegion; }
+		VkStridedDeviceAddressRegionKHR getCallRegion() { return m_callRegion; }
+
+	private:
+		bool m_isInit = false;
+
+		VkPipeline       m_pipeline;
+		VkPipelineLayout m_pipelineLayout;
+
+		//ShaderBindingTable
+		VkStridedDeviceAddressRegionKHR m_rgenRegion;
+		VkStridedDeviceAddressRegionKHR m_missRegion;
+		VkStridedDeviceAddressRegionKHR m_hitRegion;
+		VkStridedDeviceAddressRegionKHR m_callRegion;
+
+		std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
+		std::vector<VkPipelineShaderStageCreateInfo> m_stages;
+		std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_shaderGroupes;
 	};
 }
 

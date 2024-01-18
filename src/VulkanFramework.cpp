@@ -2,8 +2,19 @@
 
 #include "VulkanUtils.h"
 
+template <class integral>
+integral align_up(integral x, size_t a) {
+	return integral((x + (integral(a) - 1)) & ~integral(a - 1));
+}
+
+PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR_ = nullptr;
+PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR_ = nullptr;
+PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR = nullptr;
+
 namespace vk
 {
+	VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
+
 	VkInstance instance;
 	VkPhysicalDevice physicalDevice;
 	VkDevice device;
@@ -61,9 +72,16 @@ namespace vk
 			prios[i] = 1.0f;
 		deviceQueueCreateInfo.pQueuePriorities = prios.data();
 
+		VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES};
+		bufferDeviceAddressFeatures.bufferDeviceAddress = true;
+
+		VkPhysicalDeviceRayTracingPipelineFeaturesKHR raytracingPipelineFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
+		raytracingPipelineFeatures.pNext = &bufferDeviceAddressFeatures;
+		raytracingPipelineFeatures.rayTracingPipeline = true;
+
 		VkDeviceCreateInfo deviceCreateInfo;
 		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		deviceCreateInfo.pNext = nullptr;
+		deviceCreateInfo.pNext = &raytracingPipelineFeatures;
 		deviceCreateInfo.flags = 0;
 		deviceCreateInfo.queueCreateInfoCount = 1;
 		deviceCreateInfo.pQueueCreateInfos = &deviceQueueCreateInfo;
@@ -283,11 +301,18 @@ namespace vk
 		VkMemoryRequirements memoryRequirements;
 		vkGetBufferMemoryRequirements(vk::device, m_buffer, &memoryRequirements);
 
+
 		VkMemoryAllocateInfo allocateInfo;
 		allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocateInfo.pNext = nullptr;
 		allocateInfo.allocationSize = memoryRequirements.size;
 		allocateInfo.memoryTypeIndex = vkUtils::findMemoryTypeIndex(vk::physicalDevice, memoryRequirements.memoryTypeBits, memoryPropertyFlags);
+
+		if ((m_usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) == VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+			VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO };
+			memoryAllocateFlagsInfo.flags |= VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+			allocateInfo.pNext = &memoryAllocateFlagsInfo;
+		}
 
 		m_memoryPropertyFlags = memoryPropertyFlags;
 		VkResult result = vkAllocateMemory(vk::device, &allocateInfo, nullptr, &m_deviceMemory);
@@ -773,6 +798,7 @@ namespace vk
 			throw std::runtime_error("DescriptorSet Index out of range");
 		}
 
+		//add descriptor to pool sizes
 		{
 			bool typeAlreadyExists = false;
 			for (VkDescriptorPoolSize& poolSize : m_poolSizes)
@@ -805,7 +831,7 @@ namespace vk
 
 		VkWriteDescriptorSet writeDescriptorSet;
 		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		writeDescriptorSet.pNext = nullptr;
+		writeDescriptorSet.pNext = descriptor.pNext;
 		writeDescriptorSet.dstBinding = descriptor.binding;
 		writeDescriptorSet.dstArrayElement = 0;
 		writeDescriptorSet.descriptorCount = 1;
@@ -875,7 +901,8 @@ namespace vk
 	void Shader::compile(std::string srcDir, std::vector<std::string> srcNames, std::vector<std::string> dstDirs) {
 		for (auto srcName : srcNames) {
 			std::string dstName = srcName + ".spv";
-			system(("%VULKAN_SDK%\\Bin\\glslangValidator.exe -V " + srcDir + srcName + " -o " + dstDirs[0] + dstName).c_str());
+			std::string vulkanVersion = "vulkan1.3";
+			system(("%VULKAN_SDK%\\Bin\\glslangValidator.exe --target-env " + vulkanVersion + " -V100 " + srcDir + srcName + " -o " + dstDirs[0] + dstName).c_str());
 			for (int i = 1; i < dstDirs.size(); i++) {
 				system(("copy " + dstDirs[0] + dstName + " " + dstDirs[i]).c_str());
 			}
@@ -1226,14 +1253,103 @@ namespace vk
 
 		vkCreateCommandPool(device, &createInfo, nullptr, &commandPool);
 	}
-	// Raytracing
 
-	void createBottomLevelAccelerationStructure()
+	// Raytracing
+	struct BlasInput {
+		std::vector<VkAccelerationStructureGeometryKHR>&       asGeometry;
+		std::vector<VkAccelerationStructureBuildRangeInfoKHR>& asBuildOffsetInfo;
+		VkBuildAccelerationStructureFlagsKHR                   flags = { 0 };
+	};
+
+	struct BlasInfo {
+		VkAccelerationStructureBuildGeometryInfoKHR buildGeometryInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
+		VkAccelerationStructureBuildSizesInfoKHR sizeInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
+		const VkAccelerationStructureBuildRangeInfoKHR* rangeInfo;
+	};
+
+	void createBottomLevelAccelerationStructures(const std::vector<BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags, std::vector<Buffer>& blasBuffers, std::vector<VkAccelerationStructureKHR>& blas) //TODO add AccelerationStructure compaction
 	{
+		uint32_t nbBlas = input.size();
+		VkDeviceSize asTotalSize{ 0 };     // Memory size of all allocated BLAS
+		uint32_t     nbCompactions{ 0 };   // Nb of BLAS requesting compaction
+		VkDeviceSize maxScratchSize{ 0 };  // Largest scratch size
+
+		std::vector<BlasInfo> blasInfos(nbBlas);
+		for (uint32_t i = 0; i < nbBlas; i++) {
+			blasInfos[i].buildGeometryInfo.pNext = nullptr;
+			blasInfos[i].buildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+			blasInfos[i].buildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+			blasInfos[i].buildGeometryInfo.flags = flags;
+			blasInfos[i].buildGeometryInfo.geometryCount = input[i].asGeometry.size();
+			blasInfos[i].buildGeometryInfo.pGeometries = input[i].asGeometry.data();
+
+			blasInfos[i].rangeInfo = input[i].asBuildOffsetInfo.data();
+
+			std::vector<uint32_t> maxPrimCount(input[i].asBuildOffsetInfo.size());
+			for (uint32_t tt = 0; tt < input[i].asBuildOffsetInfo.size(); tt++) {
+				maxPrimCount[tt] = input[i].asBuildOffsetInfo[tt].primitiveCount;
+			}
+			auto vkGetAccelerationStructureBuildSizesKHR = (PFN_vkGetAccelerationStructureBuildSizesKHR)vkGetInstanceProcAddr(vk::instance, "vkGetAccelerationStructureBuildSizesKHR");
+			vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+				&blasInfos[i].buildGeometryInfo, maxPrimCount.data(), &blasInfos[i].sizeInfo);
+
+			asTotalSize += blasInfos[i].sizeInfo.accelerationStructureSize;
+			maxScratchSize = std::max(maxScratchSize, blasInfos[i].sizeInfo.buildScratchSize);
+		}
+
+		Buffer scratchBuffer = Buffer(maxScratchSize, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		scratchBuffer.init(); scratchBuffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT); //???
+		VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer};
+		VkDeviceAddress           scratchAddress = vkGetBufferDeviceAddress(device, &bufferInfo);
+
+		// Batching creation/compaction of BLAS to allow staying in restricted amount of memory
+		std::vector<uint32_t> indices;  // Indices of the BLAS to create
+		VkDeviceSize          batchSize{ 0 };
+		VkDeviceSize          batchLimit{ 256'000'000 };  // 256 MB
+
+		for (uint32_t i = 0; i < nbBlas; i++) {
+			indices.push_back(i);
+			batchSize += blasInfos[i].sizeInfo.accelerationStructureSize;
+			if (batchSize >= batchLimit || i == nbBlas - 1) {
+				CommandBuffer cmd;
+				cmd.allocate();
+				cmd.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+				for (uint32_t j : indices) {
+					VkAccelerationStructureCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
+					createInfo.buffer = blasBuffers[j];
+					createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+					createInfo.size = blasInfos[j].sizeInfo.accelerationStructureSize;
+					auto vkCreateAccelerationStructureKHR = (PFN_vkCreateAccelerationStructureKHR)vkGetInstanceProcAddr(vk::instance, "vkCreateAccelerationStructureKHR");
+					vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &blas[j]);
+
+					blasInfos[j].buildGeometryInfo.dstAccelerationStructure = blas[j];
+					blasInfos[j].buildGeometryInfo.scratchData.deviceAddress = scratchAddress;
+
+					auto vkCmdBuildAccelerationStructuresKHR = (PFN_vkCmdBuildAccelerationStructuresKHR)vkGetInstanceProcAddr(vk::instance, "vkCmdBuildAccelerationStructuresKHR");
+					vkCmdBuildAccelerationStructuresKHR(cmd, 1, &blasInfos[j].buildGeometryInfo, &blasInfos[j].rangeInfo);
+
+					VkMemoryBarrier barrier{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+					barrier.srcAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+					barrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
+					vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+						VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 1, &barrier, 0, nullptr, 0, nullptr);
+				}
+				cmd.end();
+				cmd.submit();
+				cmd.free();
+
+				batchSize = 0;
+				indices.clear();
+			}
+		}
+
+		scratchBuffer.destroy();
 	}
 
-	void createTopLevelAccelerationStructure(VkDevice &device, VkPhysicalDevice &physicalDevice, VkCommandPool &commandPool, VkQueue &queue, std::vector<VkAccelerationStructureInstanceKHR> &instances, VkAccelerationStructureKHR &accelerationStructure)
-	{
+	void createTopLevelAccelerationStructure(VkDevice &device, VkPhysicalDevice &physicalDevice, VkCommandPool &commandPool, VkQueue &queue, 
+		std::vector<VkAccelerationStructureInstanceKHR> &instances, 
+		VkAccelerationStructureKHR &accelerationStructure
+	) {
 		uint32_t countInstances = static_cast<uint32_t>(instances.size());
 
 		VkBuffer instanceBuffer;
@@ -1281,6 +1397,116 @@ namespace vk
 
 		auto vkCreateAccelerationStructureKHR = (PFN_vkCreateAccelerationStructureKHR)vkGetInstanceProcAddr(vk::instance, "vkCreateAccelerationStructureKHR");
 		vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &accelerationStructure);
+	}
+	
+	RtPipeline::RtPipeline(){}
+
+	RtPipeline::~RtPipeline(){}
+
+	void RtPipeline::init() {
+		if (m_isInit) return;
+
+		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+		pipelineLayoutCreateInfo.setLayoutCount = m_descriptorSetLayouts.size();
+		pipelineLayoutCreateInfo.pSetLayouts = m_descriptorSetLayouts.data();
+		pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
+		pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+
+		VkResult result = vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &m_pipelineLayout);
+		VK_ASSERT(result);
+
+		VkRayTracingPipelineCreateInfoKHR rtPipelineCreateInfo{ VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR };
+		rtPipelineCreateInfo.stageCount = m_stages.size();
+		rtPipelineCreateInfo.pStages = m_stages.data();
+		rtPipelineCreateInfo.groupCount = m_shaderGroupes.size();
+		rtPipelineCreateInfo.pGroups = m_shaderGroupes.data();
+		rtPipelineCreateInfo.maxPipelineRayRecursionDepth = 2;
+		rtPipelineCreateInfo.layout = m_pipelineLayout;
+
+		vkCreateRayTracingPipelinesKHR(device, {}, {}, 1, &rtPipelineCreateInfo, nullptr, &m_pipeline);
+	}
+
+	void RtPipeline::initShaderBindingTable() {
+		uint32_t missCount{ 0 };
+		uint32_t hitCount{ 0 };
+		auto     handleCount = 1 + missCount + hitCount;
+		uint32_t handleSize = rtProperties.shaderGroupHandleSize;
+
+		uint32_t handleSizeAligned = align_up(handleSize, rtProperties.shaderGroupHandleAlignment);
+
+		m_rgenRegion.stride = align_up(handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
+		m_rgenRegion.size = m_rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
+		m_missRegion.stride = handleSizeAligned;
+		m_missRegion.size = align_up(missCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
+		m_hitRegion.stride = handleSizeAligned;
+		m_hitRegion.size = align_up(hitCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
+
+		uint32_t             dataSize = handleCount * handleSize;
+		std::vector<uint8_t> handles(dataSize);
+		VkResult result = vkGetRayTracingShaderGroupHandlesKHR(device, m_pipeline, 0, handleCount, dataSize, handles.data());
+		VK_ASSERT(result);
+
+		VkDeviceSize sbtSize = m_rgenRegion.size + m_missRegion.size + m_hitRegion.size + m_callRegion.size;
+		Buffer rtSBTBuffer = Buffer(sbtSize,
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+			| VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR);
+		rtSBTBuffer.init(); rtSBTBuffer.allocate(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+		VkBufferDeviceAddressInfo bufferDeviceAddressInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, rtSBTBuffer };
+		VkDeviceAddress           sbtAddress = vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo);
+		m_rgenRegion.deviceAddress = sbtAddress;
+		m_missRegion.deviceAddress = sbtAddress + m_rgenRegion.size;
+		m_hitRegion.deviceAddress = sbtAddress + m_rgenRegion.size + m_missRegion.size;
+
+		auto getHandle = [&](int i) { return handles.data() + i * handleSize; };
+
+		void* rawData; rtSBTBuffer.map(&rawData);
+		uint8_t* pSBTBuffer = (uint8_t*)rawData;
+		uint8_t* pData{ nullptr };
+		uint32_t handleIdx{ 0 };
+		// Raygen
+		pData = pSBTBuffer;
+		memcpy(pData, getHandle(handleIdx++), handleSize);
+		// Miss
+		pData = pSBTBuffer + m_rgenRegion.size;
+		for (uint32_t c = 0; c < missCount; c++)
+		{
+			memcpy(pData, getHandle(handleIdx++), handleSize);
+			pData += m_missRegion.stride;
+		}
+		// Hit
+		pData = pSBTBuffer + m_rgenRegion.size + m_missRegion.size;
+		for (uint32_t c = 0; c < hitCount; c++)
+		{
+			memcpy(pData, getHandle(handleIdx++), handleSize);
+			pData += m_hitRegion.stride;
+		}
+	}
+
+	void RtPipeline::destroy() {}
+
+	void RtPipeline::addShader(const VkPipelineShaderStageCreateInfo& shaderStage) {
+		m_stages.push_back(shaderStage);
+	}
+
+	void RtPipeline::delShader(uint32_t index) {
+		m_stages.erase(m_stages.begin()+index);
+	}
+
+	void RtPipeline::addGroup(const VkRayTracingShaderGroupCreateInfoKHR& group) {
+		m_shaderGroupes.push_back(group);
+	}
+
+	void RtPipeline::delGroup(uint32_t index) {
+		m_shaderGroupes.erase(m_shaderGroupes.begin() + index);
+	}
+
+	void RtPipeline::addDescriptorSetLayout(VkDescriptorSetLayout setLayout){
+		m_descriptorSetLayouts.push_back(setLayout);
+	}
+
+	void RtPipeline::delDescriptorSetLayout(int index){
+		m_descriptorSetLayouts.erase(m_descriptorSetLayouts.begin() + index);
 	}
 
 	void acquireNextImage(VkSwapchainKHR swapchain, VkSemaphore semaphore, VkFence fence, uint32_t *pImageIndex)
@@ -1377,13 +1603,26 @@ void initVulkan(vk::initInfo info)
 	vk::createInstance(vk::instance, enabledInstanceLayers, enabledInstanceExtensions, info.applicationName); // Create Instance
 	vk::physicalDevice = vkUtils::getAllPhysicalDevices(vk::instance)[info.deviceIndex];
 
-	VkPhysicalDeviceFeatures usedDeviceFeatures = {};
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
+	VkPhysicalDeviceFeatures usedDeviceFeatures{};
 	std::vector<const char *> enabledDeviceLayers = {};
 	std::vector<const char *> enabledDeviceExtensions = {
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME
-		//"VK_KHR_acceleration_structure"
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME
 	};
 	vk::createLogicalDevice(vk::physicalDevice, vk::device, enabledDeviceLayers, enabledDeviceExtensions, usedDeviceFeatures); // Create Logical Device
+
+	// load extension functions
+	vkCreateRayTracingPipelinesKHR_ = (PFN_vkCreateRayTracingPipelinesKHR)vkGetDeviceProcAddr(vk::device, "vkCreateRayTracingPipelinesKHR");
+	vkGetRayTracingShaderGroupHandlesKHR_ = (PFN_vkGetRayTracingShaderGroupHandlesKHR)vkGetDeviceProcAddr(vk::device, "vkGetRayTracingShaderGroupHandlesKHR");
+	vkCmdTraceRaysKHR_ = (PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(vk::device, "vkCmdTraceRaysKHR");
+
+	// Get Properties
+	VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+	prop2.pNext = &vk::rtProperties;
+	vkGetPhysicalDeviceProperties2(vk::physicalDevice, &prop2);
 
 	vk::queueFamily = VK_PREFERED_QUEUE_FAMILY; // TODO civ
 	for (size_t i = 0; i < vk::queues.size(); i++)
