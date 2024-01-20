@@ -278,6 +278,14 @@ namespace vk
 		VK_ASSERT(result);
 	}
 
+	void Buffer::free() {
+		if (m_isAlloc)
+		{
+			m_isAlloc = false;
+			vkFreeMemory(vk::device, m_deviceMemory, nullptr);
+		}
+	}
+
 	void Buffer::destroy() {
 		if (m_isAlloc)
 		{
@@ -384,26 +392,7 @@ namespace vk
 	}
 
 	/*Image*/
-	Image::~Image()
-	{
-		if (m_isViewInit)
-		{
-			m_isViewInit = false;
-			vkDestroyImageView(vk::device, m_imageView, nullptr);
-		}
-
-		if (m_isAlloc)
-		{
-			m_isAlloc = false;
-			vkFreeMemory(vk::device, m_deviceMemory, nullptr);
-		}
-
-		if (m_isInit)
-		{
-			m_isInit = false;
-			vkDestroyImage(vk::device, m_image, nullptr);
-		}
-	}
+	Image::~Image(){}
 
 	void Image::init()
 	{
@@ -478,6 +467,48 @@ namespace vk
 		vkCreateImageView(vk::device, &viewCreateInfo, nullptr, &m_imageView);
 	}
 
+	void Image::destroy(){
+		if (m_isViewInit)
+		{
+			m_isViewInit = false;
+			vkDestroyImageView(vk::device, m_imageView, nullptr);
+		}
+
+		if (m_isAlloc)
+		{
+			m_isAlloc = false;
+			vkFreeMemory(vk::device, m_deviceMemory, nullptr);
+		}
+
+		if (m_isInit)
+		{
+			m_isInit = false;
+			vkDestroyImage(vk::device, m_image, nullptr);
+		}
+	}
+
+	void Image::free() {
+		if (m_isViewInit)
+		{
+			m_isViewInit = false;
+			vkDestroyImageView(vk::device, m_imageView, nullptr);
+		}
+
+		if (m_isAlloc)
+		{
+			m_isAlloc = false;
+			vkFreeMemory(vk::device, m_deviceMemory, nullptr);
+		}
+	}
+
+	void Image::destroyView() {
+		if (m_isViewInit)
+		{
+			m_isViewInit = false;
+			vkDestroyImageView(vk::device, m_imageView, nullptr);
+		}
+	}
+
 	void Image::update() {
 		if (!m_isInit || !m_isAlloc || !m_isViewInit) return;
 		this->~Image();
@@ -492,6 +523,7 @@ namespace vk
 
 	void Image::changeLayout(VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask){
 		vk::changeImageLayout(*this, m_subresourceRange, m_currentLayout, layout, srcAccessMask, dstAccessMask);
+		m_currentLayout = layout;
 	}
 
 	/*Surface*/
@@ -1447,12 +1479,12 @@ namespace vk
 		VK_ASSERT(result);
 
 		VkDeviceSize sbtSize = m_rgenRegion.size + m_missRegion.size + m_hitRegion.size + m_callRegion.size;
-		Buffer rtSBTBuffer = Buffer(sbtSize,
+		m_rtSBTBuffer = Buffer(sbtSize,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
 			| VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR);
-		rtSBTBuffer.init(); rtSBTBuffer.allocate(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		m_rtSBTBuffer.init(); m_rtSBTBuffer.allocate(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-		VkBufferDeviceAddressInfo bufferDeviceAddressInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, rtSBTBuffer };
+		VkBufferDeviceAddressInfo bufferDeviceAddressInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_rtSBTBuffer };
 		VkDeviceAddress           sbtAddress = vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo);
 		m_rgenRegion.deviceAddress = sbtAddress;
 		m_missRegion.deviceAddress = sbtAddress + m_rgenRegion.size;
@@ -1460,7 +1492,7 @@ namespace vk
 
 		auto getHandle = [&](int i) { return handles.data() + i * handleSize; };
 
-		void* rawData; rtSBTBuffer.map(&rawData);
+		void* rawData; m_rtSBTBuffer.map(&rawData);
 		uint8_t* pSBTBuffer = (uint8_t*)rawData;
 		uint8_t* pData{ nullptr };
 		uint32_t handleIdx{ 0 };
@@ -1483,7 +1515,11 @@ namespace vk
 		}
 	}
 
-	void RtPipeline::destroy() {}
+	void RtPipeline::destroy() {
+		m_rtSBTBuffer.destroy();
+		vkDestroyPipelineLayout(device, m_pipelineLayout, nullptr);
+		vkDestroyPipeline(device, m_pipeline, nullptr);
+	}
 
 	void RtPipeline::addShader(const VkPipelineShaderStageCreateInfo& shaderStage) {
 		m_stages.push_back(shaderStage);

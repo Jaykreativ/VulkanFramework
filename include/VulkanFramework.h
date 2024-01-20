@@ -90,6 +90,8 @@ namespace vk
 
 		void allocate(VkMemoryPropertyFlags memoryPropertyFlags);
 
+		void free();
+
 		void map(void** ptr);
 		void map(VkDeviceSize offset, void** ptr);
 
@@ -139,6 +141,12 @@ namespace vk
 		void allocate(VkMemoryPropertyFlags memoryProperties);
 
 		void initView();
+
+		void destroy();
+
+		void free();
+
+		void destroyView();
 
 		void update();
 
@@ -577,6 +585,7 @@ namespace vk
 		VkPipelineLayout m_pipelineLayout;
 
 		//ShaderBindingTable
+		Buffer m_rtSBTBuffer;
 		VkStridedDeviceAddressRegionKHR m_rgenRegion;
 		VkStridedDeviceAddressRegionKHR m_missRegion;
 		VkStridedDeviceAddressRegionKHR m_hitRegion;
