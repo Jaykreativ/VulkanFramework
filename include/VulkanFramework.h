@@ -536,6 +536,27 @@ namespace vk
 		uint32_t    deviceIndex = 0;
 	};
 
+	struct BlasInput {
+		std::vector<VkAccelerationStructureGeometryKHR> asGeometry;
+		std::vector<VkAccelerationStructureBuildRangeInfoKHR> asBuildOffsetInfo;
+		VkBuildAccelerationStructureFlagsKHR                   flags = { 0 };
+	};
+
+	struct BlasInfo {
+		VkAccelerationStructureBuildGeometryInfoKHR buildGeometryInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
+		VkAccelerationStructureBuildSizesInfoKHR sizeInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
+		const VkAccelerationStructureBuildRangeInfoKHR* rangeInfo;
+	};
+
+	BlasInput objToVkGeometry(VkBuffer vertexBuffer, VkBuffer indexBuffer);
+
+	void createBottomLevelAccelerationStructures(const std::vector<BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags, std::vector<Buffer>& blasBuffers, std::vector<VkAccelerationStructureKHR>& blas);
+
+	void createTopLevelAccelerationStructure(VkDevice& device, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue,
+		std::vector<VkAccelerationStructureInstanceKHR>& instances,
+		VkAccelerationStructureKHR& accelerationStructure
+	);
+
 	class RtPipeline {
 	public:
 		RtPipeline();

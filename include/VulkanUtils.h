@@ -49,4 +49,6 @@ namespace vkUtils {
 	void updateBuffer(VkDevice& device, VkDeviceMemory& bufferMemory, VkDeviceSize bufferSize, const void* data);
 
 	void uploadBuffer(VkDevice& device, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue, VkDeviceSize bufferSize, void* data, VkBuffer& buffer);
+
+	VkDeviceAddress getBufferDeviceAddress(VkDevice device, VkBuffer buffer);
 };

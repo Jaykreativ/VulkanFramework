@@ -1255,17 +1255,39 @@ namespace vk
 	}
 
 	// Raytracing
-	struct BlasInput {
-		std::vector<VkAccelerationStructureGeometryKHR>&       asGeometry;
-		std::vector<VkAccelerationStructureBuildRangeInfoKHR>& asBuildOffsetInfo;
-		VkBuildAccelerationStructureFlagsKHR                   flags = { 0 };
-	};
+	BlasInput objToVkGeometry(vk::Buffer vertexBuffer, uint32_t vertexStride, vk::Buffer indexBuffer) {
+		auto vertexAddress = vkUtils::getBufferDeviceAddress(device, vertexBuffer);
+		auto indexAddress = vkUtils::getBufferDeviceAddress(device, indexBuffer);
 
-	struct BlasInfo {
-		VkAccelerationStructureBuildGeometryInfoKHR buildGeometryInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
-		VkAccelerationStructureBuildSizesInfoKHR sizeInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
-		const VkAccelerationStructureBuildRangeInfoKHR* rangeInfo;
-	};
+		uint32_t maxPrimitiveCount = indexBuffer.getSize()/(sizeof(uint32_t)*3);
+
+		VkAccelerationStructureGeometryTrianglesDataKHR triangleData{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR };
+		triangleData.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+		triangleData.vertexData.deviceAddress = vertexAddress;
+		triangleData.vertexStride = vertexStride;
+
+		triangleData.indexType = VK_INDEX_TYPE_UINT32;
+		triangleData.indexData.deviceAddress = indexAddress;
+
+		triangleData.maxVertex = vertexBuffer.getSize() / vertexStride;
+
+		VkAccelerationStructureGeometryKHR asGeometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
+		asGeometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+		asGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+		asGeometry.geometry.triangles = triangleData;
+
+		VkAccelerationStructureBuildRangeInfoKHR offset;
+		offset.firstVertex = 0;
+		offset.primitiveCount = maxPrimitiveCount;
+		offset.primitiveOffset = 0;
+		offset.transformOffset = 0;
+
+		BlasInput input{};
+		input.asGeometry.push_back(asGeometry);
+		input.asBuildOffsetInfo.push_back(offset);
+
+		return input;
+	}
 
 	void createBottomLevelAccelerationStructures(const std::vector<BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags, std::vector<Buffer>& blasBuffers, std::vector<VkAccelerationStructureKHR>& blas) //TODO add AccelerationStructure compaction
 	{
