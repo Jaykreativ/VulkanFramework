@@ -14,6 +14,14 @@ extern PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandle
 #define vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR_
 extern PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR_;
 #define vkCmdTraceRaysKHR vkCmdTraceRaysKHR_
+extern PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR_;
+#define vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR_
+extern PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR_;
+#define vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR_
+extern PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR_;
+#define vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR_
+extern PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR_;
+#define vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR_
 
 #define PRINT_PHYSICAL_DEVICES true
 #define PRINT_QUEUE_FAMILIES  false
@@ -21,7 +29,6 @@ extern PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR_;
 #define PRINT_AVAILABLE_INSTANCE_EXTENSIONS false
 #define PRINT_AVAILABLE_INSTANCE_LAYERS false
 
-#define VK_INDEX_OF_USED_PHYSICAL_DEVICE 0
 #define VK_PREFERED_QUEUE_FAMILY 0
 #define VK_PREFERED_AMOUNT_OF_QUEUES 4
 #define VK_MIN_AMOUNT_OF_SWAPCHAIN_IMAGES 3
@@ -150,8 +157,8 @@ namespace vk
 
 		void update();
 
-		void cmdChangeLayout(VkCommandBuffer cmd, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
-		void changeLayout(VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
+		void cmdChangeLayout(VkCommandBuffer cmd, VkImageLayout layout, VkAccessFlags dstAccessMask);
+		void changeLayout(VkImageLayout layout, VkAccessFlags dstAccessMask);
 
 		void setType(VkImageType type) { m_type = type; }
 
@@ -203,7 +210,7 @@ namespace vk
 
 		VkImageType m_type = VK_IMAGE_TYPE_2D;
 		VkImageViewType m_viewType = VK_IMAGE_VIEW_TYPE_2D;
-		VkFormat m_format;
+		VkFormat m_format = VK_USED_SCREENCOLOR_FORMAT;
 		VkImageAspectFlags m_aspect = VK_IMAGE_ASPECT_NONE;
 		VkExtent3D m_extent = {1, 1, 1};
 		uint32_t m_mipLevelCount = 1;
@@ -213,6 +220,7 @@ namespace vk
 		VkImageSubresourceRange m_subresourceRange;
 		VkImageLayout m_currentLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
 		VkMemoryPropertyFlags m_memoryProperties = 0;
+		VkAccessFlags m_accessMask = 0;
 	};
 	
 	class Surface {
@@ -556,14 +564,13 @@ namespace vk
 		const VkAccelerationStructureBuildRangeInfoKHR* rangeInfo;
 	};
 
-	BlasInput objToVkGeometry(VkBuffer vertexBuffer, VkBuffer indexBuffer);
+	BlasInput objToVkGeometry(vk::Buffer vertexBuffer, uint32_t vertexStride, vk::Buffer indexBuffer);
 
 	void createBottomLevelAccelerationStructures(const std::vector<BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags, std::vector<Buffer>& blasBuffers, std::vector<VkAccelerationStructureKHR>& blas);
 
-	void createTopLevelAccelerationStructure(VkDevice& device, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue,
-		std::vector<VkAccelerationStructureInstanceKHR>& instances,
-		VkAccelerationStructureKHR& accelerationStructure
-	);
+	void createTopLevelAccelerationStructure(std::vector<VkAccelerationStructureInstanceKHR>& instances, VkAccelerationStructureKHR& accelerationStructure);
+
+	VkDeviceAddress getAccelerationStructureDeviceAddress(VkAccelerationStructureKHR accelerationStructure);
 
 	class RtPipeline {
 	public:
@@ -615,6 +622,29 @@ namespace vk
 		std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
 		std::vector<VkPipelineShaderStageCreateInfo> m_stages;
 		std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_shaderGroupes;
+	};
+
+	class AccelerationStructure {
+	public:
+		AccelerationStructure();
+		~AccelerationStructure();
+
+		void init();
+
+		void destroy();
+
+		void update();
+
+		void setType(VkAccelerationStructureTypeKHR type) { m_type = type; }
+
+		void addGeometry();
+
+		VkDeviceAddress getDeviceAddress();
+
+	private:
+		VkAccelerationStructureTypeKHR m_type; // Has to be set by user before initializing
+		std::vector<VkAccelerationStructureGeometryKHR> m_geometryVector;
+		VkAccelerationStructureBuildRangeInfoKHR m_buildRangeInfo{};
 	};
 }
 
