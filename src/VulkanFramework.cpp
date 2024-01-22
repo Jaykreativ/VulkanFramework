@@ -14,6 +14,7 @@ PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR_ = nullptr
 PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR_ = nullptr;
 PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR_ = nullptr;
 PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR_ = nullptr;
+PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR_ = nullptr;
 
 namespace vk
 {
@@ -381,6 +382,18 @@ namespace vk
 
 		Buffer::copyBuffer(this, &stagingBuffer, m_size);
 		stagingBuffer.destroy();
+	}
+
+	VkDeviceAddress Buffer::getVkDeviceAddress() {
+		VkBufferDeviceAddressInfo bufferDeviceAddressInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr };
+		bufferDeviceAddressInfo.buffer = m_buffer;
+		return vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo);
+	}
+
+	VkDeviceAddress Buffer::getBufferVkDeviceAddress(VkBuffer buffer) {
+		VkBufferDeviceAddressInfo bufferDeviceAddressInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr };
+		bufferDeviceAddressInfo.buffer = buffer;
+		return vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo);
 	}
 
 	void Buffer::copyBuffer(vk::Buffer* dst, vk::Buffer* src, VkDeviceSize size)
@@ -1508,11 +1521,46 @@ namespace vk
 		buildGeometryInfo.geometryCount = m_geometryVector.size();
 		buildGeometryInfo.pGeometries = m_geometryVector.data();
 
-		VkAccelerationStructureBuildRangeInfoKHR* buildRangeInfo = &m_buildRangeInfo;
+		VkAccelerationStructureBuildSizesInfoKHR sizeInfo{};
+
+		vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+			&buildGeometryInfo, &m_buildRangeInfo.primitiveCount, &sizeInfo);
+
+		m_buffer = Buffer(sizeInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR);
+		m_buffer.init(); m_buffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		VkAccelerationStructureCreateInfoKHR createInfo;
+		createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+		createInfo.pNext = nullptr;
+		createInfo.createFlags = 0;
+		createInfo.buffer = m_buffer;
+		createInfo.offset = 0;
+		createInfo.size = sizeInfo.accelerationStructureSize;
+		createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+		createInfo.deviceAddress = 0;
+
+		vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &m_accelerationStructure);
+
+		Buffer scratchBuffer = Buffer(sizeInfo.buildScratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+		scratchBuffer.init(); scratchBuffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		buildGeometryInfo.dstAccelerationStructure = m_accelerationStructure;
+		buildGeometryInfo.scratchData.deviceAddress = scratchBuffer.getVkDeviceAddress();
+
+		VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfo = &m_buildRangeInfo;
+
+		CommandBuffer cmd; cmd.allocate(); cmd.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+		vkCmdBuildAccelerationStructuresKHR(cmd, 1, &buildGeometryInfo, &pBuildRangeInfo);
+
+		cmd.end(); cmd.submit(); cmd.free();
+
+		scratchBuffer.destroy();
 	}
 
 	void AccelerationStructure::destroy() {
-
+		m_buffer.destroy();
+		vkDestroyAccelerationStructureKHR(device, m_accelerationStructure, nullptr);
 	}
 
 	void AccelerationStructure::update() {
@@ -1746,7 +1794,8 @@ void initVulkan(vk::initInfo info)
 	vkGetAccelerationStructureBuildSizesKHR_ = (PFN_vkGetAccelerationStructureBuildSizesKHR)vkGetDeviceProcAddr(vk::device, "vkGetAccelerationStructureBuildSizesKHR");
 	vkCmdBuildAccelerationStructuresKHR_ = (PFN_vkCmdBuildAccelerationStructuresKHR)vkGetDeviceProcAddr(vk::device, "vkCmdBuildAccelerationStructuresKHR");
 	vkGetAccelerationStructureDeviceAddressKHR_ = (PFN_vkGetAccelerationStructureDeviceAddressKHR)vkGetDeviceProcAddr(vk::device, "vkGetAccelerationStructureDeviceAddressKHR");
-
+	vkDestroyAccelerationStructureKHR_ = (PFN_vkDestroyAccelerationStructureKHR)vkGetDeviceProcAddr(vk::device, "vkDestroyAccelerationStructureKHR");
+	
 	// Get Properties
 	VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
 	prop2.pNext = &vk::rtProperties;

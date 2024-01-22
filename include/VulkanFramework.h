@@ -22,6 +22,8 @@ extern PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructure
 #define vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR_
 extern PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR_;
 #define vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR_
+extern PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR_;
+#define vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR_
 
 #define PRINT_PHYSICAL_DEVICES true
 #define PRINT_QUEUE_FAMILIES  false
@@ -115,11 +117,15 @@ namespace vk
 
 		VkDeviceMemory getVkDeviceMemory() { return m_deviceMemory; }
 
+		VkDeviceAddress getVkDeviceAddress();
+
 		VkDeviceSize getSize() { return m_size; }
 
 		VkBufferUsageFlags getUsage() { return m_usage; }
 
 		VkMemoryPropertyFlags getMemoryPropertyFlags() { return m_memoryPropertyFlags; }
+
+		static VkDeviceAddress getBufferVkDeviceAddress(VkBuffer buffer);
 
 		static void copyBuffer(vk::Buffer* dst, vk::Buffer* src, VkDeviceSize size);
 
@@ -642,6 +648,9 @@ namespace vk
 		VkDeviceAddress getDeviceAddress();
 
 	private:
+		Buffer m_buffer;
+		VkAccelerationStructureKHR m_accelerationStructure;
+
 		VkAccelerationStructureTypeKHR m_type; // Has to be set by user before initializing
 		std::vector<VkAccelerationStructureGeometryKHR> m_geometryVector;
 		VkAccelerationStructureBuildRangeInfoKHR m_buildRangeInfo{};
