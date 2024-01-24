@@ -5,7 +5,7 @@
 #include <vector>
 
 #define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include "GLFW/glfw3.h"
 
 //define extension functions
 extern PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR_;
@@ -630,10 +630,35 @@ namespace vk
 		std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_shaderGroupes;
 	};
 
+	class AccelerationStructure; // forward declaration
+
+	class AccelerationStructureInstance {
+	public:
+		AccelerationStructureInstance();
+		AccelerationStructureInstance(AccelerationStructure accelerationStructure);
+		~AccelerationStructureInstance();
+
+		void setTransform(VkTransformMatrixKHR transform);
+
+		void setCustomIndex(uint32_t customIndex);
+
+		void setMask(uint32_t mask);
+
+		void setShaderBindingTableRecordOffset(uint32_t offset);
+
+		void setFlags(VkGeometryInstanceFlagsKHR flags);
+	private:
+		VkAccelerationStructureInstanceKHR m_instance;
+
+		friend class AccelerationStructure;
+	};
+
 	class AccelerationStructure {
 	public:
 		AccelerationStructure();
 		~AccelerationStructure();
+
+		operator VkAccelerationStructureKHR() { return m_accelerationStructure; }
 
 		void init();
 
@@ -643,7 +668,9 @@ namespace vk
 
 		void setType(VkAccelerationStructureTypeKHR type) { m_type = type; }
 
-		void addGeometry();
+		void addGeometry(std::vector<AccelerationStructureInstance> instances);
+
+		void addGeometry(Buffer vertexBuffer, uint32_t vertexStride, Buffer indexBuffer);
 
 		VkDeviceAddress getDeviceAddress();
 
@@ -653,7 +680,8 @@ namespace vk
 
 		VkAccelerationStructureTypeKHR m_type; // Has to be set by user before initializing
 		std::vector<VkAccelerationStructureGeometryKHR> m_geometryVector;
-		VkAccelerationStructureBuildRangeInfoKHR m_buildRangeInfo{};
+		std::vector<VkAccelerationStructureBuildRangeInfoKHR> m_buildRangeInfoVector;
+		Buffer m_instanceBuffer;
 	};
 }
 
