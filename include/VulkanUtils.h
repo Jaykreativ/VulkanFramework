@@ -8,6 +8,7 @@
 
 #define VK_ASSERT(val)\
 			if (val != VK_SUCCESS) {\
+				std::cout << "Vulkan Error: " << val << "\n";\
 				throw std::runtime_error("Vulkan Error!");\
 			}
 

@@ -468,22 +468,22 @@ namespace vk
 		m_isViewInit = true;
 
 		VkImageViewCreateInfo viewCreateInfo;
-		viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		viewCreateInfo.pNext = nullptr;
-		viewCreateInfo.flags = 0;
-		viewCreateInfo.image = m_image;
-		viewCreateInfo.viewType = m_viewType;
-		viewCreateInfo.format = m_format;
-		viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-		viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-		m_subresourceRange.aspectMask = m_aspect;
-		m_subresourceRange.baseMipLevel = 0;
-		m_subresourceRange.levelCount = m_mipLevelCount;
-		m_subresourceRange.baseArrayLayer = 0;
-		m_subresourceRange.layerCount = 1;
-		viewCreateInfo.subresourceRange = m_subresourceRange;
+		viewCreateInfo.sType =               VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		viewCreateInfo.pNext =               nullptr;
+		viewCreateInfo.flags =               0;
+		viewCreateInfo.image =               m_image;
+		viewCreateInfo.viewType =            m_viewType;
+		viewCreateInfo.format =              m_format;
+		viewCreateInfo.components.r =        VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewCreateInfo.components.g =        VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewCreateInfo.components.b =        VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewCreateInfo.components.a =        VK_COMPONENT_SWIZZLE_IDENTITY;
+		m_subresourceRange.aspectMask =      m_aspect;
+		m_subresourceRange.baseMipLevel =    0;
+		m_subresourceRange.levelCount =      m_mipLevelCount;
+		m_subresourceRange.baseArrayLayer =  0;
+		m_subresourceRange.layerCount =      1;
+		viewCreateInfo.subresourceRange =    m_subresourceRange;
 
 		vkCreateImageView(vk::device, &viewCreateInfo, nullptr, &m_imageView);
 	}
@@ -552,6 +552,18 @@ namespace vk
 		vk::changeImageLayout(*this, m_subresourceRange, m_currentLayout, layout, m_accessMask, dstAccessMask);
 		m_currentLayout = layout;
 		m_accessMask = dstAccessMask;
+	}
+
+	Sampler::Sampler() {}
+	Sampler::~Sampler() {}
+
+	void Sampler::init() {
+		VkResult result = vkCreateSampler(device, &m_createInfo, nullptr, &m_sampler);
+		VK_ASSERT(result);
+	}
+
+	void Sampler::destroy(){
+		vkDestroySampler(device, m_sampler, nullptr);
 	}
 
 	/*Surface*/

@@ -161,6 +161,8 @@ namespace vk
 
 		void destroyView();
 
+		void destroySampler();
+
 		void update();
 
 		void cmdChangeLayout(VkCommandBuffer cmd, VkImageLayout layout, VkAccessFlags dstAccessMask);
@@ -229,6 +231,41 @@ namespace vk
 		VkAccessFlags m_accessMask = 0;
 	};
 	
+	class Sampler {
+	public:
+		Sampler();
+		~Sampler();
+
+		operator VkSampler() { return m_sampler; }
+
+		void init();
+
+		void destroy();
+
+	private:
+		VkSampler m_sampler = VK_NULL_HANDLE;
+
+		VkSamplerCreateInfo m_createInfo = {
+			VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+			nullptr,
+			0,
+			VK_FILTER_LINEAR,
+			VK_FILTER_LINEAR,
+			VK_SAMPLER_MIPMAP_MODE_LINEAR,
+			VK_SAMPLER_ADDRESS_MODE_REPEAT, // outside image bounds just use border color
+			VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			0,
+			false,
+			1.0f,
+			false,
+			VK_COMPARE_OP_NEVER,
+			-1000,
+			1000,
+			VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
+		};
+	};
+
 	class Surface {
 	public:
 		Surface(){}
@@ -620,10 +657,10 @@ namespace vk
 
 		//ShaderBindingTable
 		Buffer m_rtSBTBuffer;
-		VkStridedDeviceAddressRegionKHR m_rgenRegion;
-		VkStridedDeviceAddressRegionKHR m_missRegion;
-		VkStridedDeviceAddressRegionKHR m_hitRegion;
-		VkStridedDeviceAddressRegionKHR m_callRegion;
+		VkStridedDeviceAddressRegionKHR m_rgenRegion = {};
+		VkStridedDeviceAddressRegionKHR m_missRegion = {};
+		VkStridedDeviceAddressRegionKHR m_hitRegion = {};
+		VkStridedDeviceAddressRegionKHR m_callRegion = {};
 
 		std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
 		std::vector<VkPipelineShaderStageCreateInfo> m_stages;
