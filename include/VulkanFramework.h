@@ -272,13 +272,13 @@ namespace vk
 
 		~Surface();
 
-		operator VkSurfaceKHR() { return m_surface; }
+		operator VkSurfaceKHR() const { return m_surface; }
 
 		void init();
 
 		void setGLFWwindow(GLFWwindow* window) { m_GLFWwindow = window; }
 
-		VkSurfaceKHR getVkSurfaceKHR() { return m_surface; }
+		VkSurfaceKHR getVkSurfaceKHR() const { return m_surface; }
 
 	private:
 		bool m_isInit = false;
@@ -293,7 +293,7 @@ namespace vk
 
 		~Swapchain();
 
-		operator VkSwapchainKHR() { return m_swapchain; }
+		operator VkSwapchainKHR() const { return m_swapchain; }
 
 		void init();
 
@@ -308,7 +308,7 @@ namespace vk
 
 		void setPresentMode(VkPresentModeKHR presentMode) { m_presentMode = presentMode; }
 
-		VkSwapchainKHR getVkSwapchainKHR() { return m_swapchain; }
+		VkSwapchainKHR getVkSwapchainKHR() const { return m_swapchain; }
 
 		uint32_t getImageCount() { return m_images.size(); }
 
@@ -342,7 +342,81 @@ namespace vk
 		const VkBufferView*           pTexelBufferView;
 	};
 
+	class DescriptorPool; //forward decleration
+
+	class DescriptorSet {
+	public:
+		DescriptorSet();
+		~DescriptorSet();
+
+		operator VkDescriptorSet() const { return m_descriptorSet; }
+
+		void init();
+
+		void allocate();
+
+		void update();
+
+		void updateDescriptor(uint32_t index);
+
+		void destroy();
+
+		void free();
+
+		void addDescriptor(Descriptor descriptor);
+
+		void eraseDescriptor(uint32_t index);
+
+		void eraseDescriptors(uint32_t offset, uint32_t range);
+
+		void setDescriptor(uint32_t index, Descriptor descriptor);
+
+		void setDescriptorPool(const DescriptorPool* descriptorPool);
+
+		Descriptor getDescriptor(uint32_t index);
+
+		VkDescriptorSetLayout getVkDescriptorSetLayout() const { return m_descriptorSetLayout; }
+
+	private:
+		VkDescriptorSet m_descriptorSet = VK_NULL_HANDLE;
+		VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
+
+		const DescriptorPool* m_pDescriptorPool = nullptr;
+
+		std::vector<Descriptor> m_descriptors = {};
+
+		friend class DescriptorPool;
+	};
+
 	class DescriptorPool {
+	public:
+		DescriptorPool();
+		~DescriptorPool();
+
+		operator VkDescriptorPool() const { return m_descriptorPool; }
+
+		void init();
+
+		void update();
+
+		void destroy();
+
+		void addDescriptorSet(DescriptorSet& descriptorSet);
+
+		void setMaxSets(uint32_t maxSets);
+
+		void addPoolSize(VkDescriptorPoolSize poolSize);
+		void addPoolSize(VkDescriptorType type, uint32_t count);
+		void addPoolSizes(VkDescriptorPoolSize* poolSize, uint32_t poolSizeCount);
+
+	private:
+		VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
+
+		uint32_t m_maxSets = 0;
+		std::vector<VkDescriptorPoolSize> m_poolSizes = {};
+	};
+	
+	/*class DescriptorPool {
 	public:
 		DescriptorPool() {}
 
@@ -355,6 +429,8 @@ namespace vk
 		void update();
 
 		void addDescriptorSet();
+
+		void updateDescriptorSet();
 
 		void addDescriptor(const Descriptor& descriptor, uint32_t setIndex);
 
@@ -380,7 +456,7 @@ namespace vk
 		std::vector<std::vector<VkDescriptorSetLayoutBinding>> m_setLayoutCreateInfoBindings;
 		std::vector<VkWriteDescriptorSet> m_writeDescriptorSets;
 		std::vector<uint32_t> m_writeDescriptorSetIndices;
-	};
+	};*/
 
 	class Shader {
 	public:
@@ -595,26 +671,6 @@ namespace vk
 		uint32_t    deviceIndex = 0;
 	};
 
-	struct BlasInput {
-		std::vector<VkAccelerationStructureGeometryKHR> asGeometry;
-		std::vector<VkAccelerationStructureBuildRangeInfoKHR> asBuildOffsetInfo;
-		VkBuildAccelerationStructureFlagsKHR                   flags = { 0 };
-	};
-
-	struct BlasInfo {
-		VkAccelerationStructureBuildGeometryInfoKHR buildGeometryInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
-		VkAccelerationStructureBuildSizesInfoKHR sizeInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
-		const VkAccelerationStructureBuildRangeInfoKHR* rangeInfo;
-	};
-
-	BlasInput objToVkGeometry(vk::Buffer vertexBuffer, uint32_t vertexStride, vk::Buffer indexBuffer);
-
-	void createBottomLevelAccelerationStructures(const std::vector<BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags, std::vector<Buffer>& blasBuffers, std::vector<VkAccelerationStructureKHR>& blas);
-
-	void createTopLevelAccelerationStructure(std::vector<VkAccelerationStructureInstanceKHR>& instances, VkAccelerationStructureKHR& accelerationStructure);
-
-	VkDeviceAddress getAccelerationStructureDeviceAddress(VkAccelerationStructureKHR accelerationStructure);
-
 	class RtPipeline {
 	public:
 		RtPipeline();
@@ -705,7 +761,9 @@ namespace vk
 
 		void setType(VkAccelerationStructureTypeKHR type) { m_type = type; }
 
-		void addGeometry(std::vector<AccelerationStructureInstance> instances);
+		void addGeometry(std::vector<AccelerationStructureInstance>& instances);
+
+		void updateGeometry(std::vector<AccelerationStructureInstance>& instances);
 
 		void addGeometry(Buffer vertexBuffer, uint32_t vertexStride, Buffer indexBuffer);
 

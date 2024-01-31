@@ -98,7 +98,7 @@ namespace vk
 		deviceCreateInfo.ppEnabledLayerNames = enabledLayers.data();
 		deviceCreateInfo.enabledExtensionCount = enabledExtensions.size();
 		deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
-		deviceCreateInfo.pEnabledFeatures = &usedFeatures;
+		deviceCreateInfo.pEnabledFeatures = &usedFeatures;// TODO add way to add features as user
 
 		VkResult result = vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device);
 		VK_ASSERT(result);
@@ -712,227 +712,403 @@ namespace vk
 		return m_imageViews[index];
 	}
 
-	/*DescriptorPool*/
-	void descriptorPoolCreate(
-		std::vector<VkDescriptorPoolSize>&                      poolSizes,
-		std::vector<VkDescriptorSetLayoutCreateInfo>&           setLayoutCreateInfos,
-		std::vector<std::vector<VkDescriptorSetLayoutBinding>>& setLayoutCreateInfoBindings,
-		uint32_t&                                               descriptorSetCount,
-		uint32_t&                                               descriptorSetArrayLength,
-		VkDescriptorSet*&                                       pDescriptorSets,
-		VkDescriptorSetLayout*&                                 pDescriptorSetLayouts,
-		std::vector<VkWriteDescriptorSet>&                      writeDescriptorSets,
-		std::vector<uint32_t>&                                  writeDescriptorSetIndices,
-		VkDescriptorPool&                                       m_descriptorPool
-	) {
-		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
-		descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		descriptorPoolCreateInfo.pNext = nullptr;
-		descriptorPoolCreateInfo.flags = 0;
-		descriptorPoolCreateInfo.maxSets = setLayoutCreateInfos.size();
-		descriptorPoolCreateInfo.poolSizeCount = poolSizes.size();
-		descriptorPoolCreateInfo.pPoolSizes = poolSizes.data();
+	/*DescriptorSet*/
+	DescriptorSet::DescriptorSet() {}
+	DescriptorSet::~DescriptorSet() {}
 
-		vkCreateDescriptorPool(vk::device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool);
+	void DescriptorSet::init() {
+		VkDescriptorSetLayoutCreateInfo createInfo;
+		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		createInfo.pNext = nullptr;
+		createInfo.flags = 0;
+		createInfo.bindingCount = m_descriptors.size();
 
-		pDescriptorSetLayouts = new VkDescriptorSetLayout[descriptorSetCount];
-		descriptorSetArrayLength = descriptorSetCount;
-		for (int i = 0; i < descriptorSetArrayLength; i++)
-		{
-			setLayoutCreateInfos[i].bindingCount = setLayoutCreateInfoBindings[i].size();
-			setLayoutCreateInfos[i].pBindings = setLayoutCreateInfoBindings[i].data();
-			vkCreateDescriptorSetLayout(vk::device, &setLayoutCreateInfos[i], nullptr, &pDescriptorSetLayouts[i]);
+		VkDescriptorSetLayoutBinding* pBindings = new VkDescriptorSetLayoutBinding[createInfo.bindingCount];
+		for (uint32_t i = 0; i < m_descriptors.size(); i++) {
+			VkDescriptorSetLayoutBinding& binding = pBindings[i];
+			auto& descriptor = m_descriptors[i];
+			binding.binding = descriptor.binding;
+			binding.descriptorType = descriptor.type;
+			binding.descriptorCount = 1;
+			binding.stageFlags = descriptor.stages;
+			binding.pImmutableSamplers = nullptr;
+		}
+		createInfo.pBindings = pBindings; 
+
+		vkCreateDescriptorSetLayout(device, &createInfo, nullptr, &m_descriptorSetLayout);
+
+		delete[] pBindings;
+	}
+
+	void DescriptorSet::allocate() {
+		if (!m_pDescriptorPool) {
+			std::cerr << "ERROR: Invalid DescriptorPool: set has to be part of a DescriptorPool to be allocated | DescriptorPool: " << m_pDescriptorPool << "\n";
+			throw std::runtime_error("Invalid Descriptor Pool");
 		}
 
 		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo;
 		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		descriptorSetAllocateInfo.pNext = nullptr;
-		descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
-		descriptorSetAllocateInfo.descriptorSetCount = descriptorSetArrayLength;
-		descriptorSetAllocateInfo.pSetLayouts = pDescriptorSetLayouts;
+		descriptorSetAllocateInfo.descriptorPool = *m_pDescriptorPool;
+		descriptorSetAllocateInfo.descriptorSetCount = 1;
+		descriptorSetAllocateInfo.pSetLayouts = &m_descriptorSetLayout;
 
-		pDescriptorSets = new VkDescriptorSet[descriptorSetArrayLength];
-		vkAllocateDescriptorSets(vk::device, &descriptorSetAllocateInfo, pDescriptorSets);
-
-		for (int i = 0; i < writeDescriptorSets.size(); i++)
-		{
-			writeDescriptorSets[i].dstSet = pDescriptorSets[writeDescriptorSetIndices[i]];
-		}
-
-		vkUpdateDescriptorSets(vk::device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
+		vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &m_descriptorSet);
 	}
 
-	void descriptorPoolDestroy(
-		uint32_t&                          descriptorSetArrayLenght,
-		VkDescriptorSet*&                  pDescriptorSets,
-		VkDescriptorSetLayout*&            pDescriptorSetLayouts,
-		std::vector<VkWriteDescriptorSet>& writeDescriptorSets,
-		VkDescriptorPool&                  descriptorPool
-	) {
-		for (int i = 0; i < descriptorSetArrayLenght; i++)
-		{
-			vkDestroyDescriptorSetLayout(vk::device, pDescriptorSetLayouts[i], nullptr);
-		}
-		vkDestroyDescriptorPool(vk::device, descriptorPool, nullptr);
+	void DescriptorSet::update() {
+		uint32_t writeCount = m_descriptors.size();
+		VkWriteDescriptorSet* pWrites = new VkWriteDescriptorSet[writeCount];
 
-		delete[] pDescriptorSetLayouts;
-		delete[] pDescriptorSets;
+		for (uint32_t i = 0; i < writeCount; i++) {
+			auto& write = pWrites[i];
+			auto& descriptor = m_descriptors[i];
+			write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			write.pNext = descriptor.pNext;
+			write.dstSet = m_descriptorSet;
+			write.dstBinding = descriptor.binding;
+			write.dstArrayElement = 0;
+			write.descriptorCount = 1;
+			write.descriptorType = descriptor.type;
+			write.pImageInfo = descriptor.pImageInfo;
+			write.pBufferInfo = descriptor.pBufferInfo;
+			write.pTexelBufferView = descriptor.pTexelBufferView;
+		}
+
+		vkUpdateDescriptorSets(device, writeCount, pWrites, 0, nullptr);
+
+		delete[] pWrites;
 	}
 
-	DescriptorPool::~DescriptorPool()
-	{
-		if (!m_isInit)
-			return;
-		m_isInit = false;
+	void DescriptorSet::updateDescriptor(uint32_t index) {
+		auto& descriptor = m_descriptors[index];
+		VkWriteDescriptorSet write{};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.pNext = descriptor.pNext;
+		write.dstSet = m_descriptorSet;
+		write.dstBinding = descriptor.binding;
+		write.dstArrayElement = 0;
+		write.descriptorCount = 1;
+		write.descriptorType = descriptor.type;
+		write.pImageInfo = descriptor.pImageInfo;
+		write.pBufferInfo = descriptor.pBufferInfo;
+		write.pTexelBufferView = descriptor.pTexelBufferView;
 
-		descriptorPoolDestroy(
-			m_descriptorSetCount,
-			m_pDescriptorSets,
-			m_pDescriptorSetLayouts,
-			m_writeDescriptorSets,
-			m_descriptorPool
-		);
-		for (int i = 0; i < m_writeDescriptorSets.size(); i++)
-		{
-			delete m_writeDescriptorSets[i].pImageInfo;
-			delete m_writeDescriptorSets[i].pBufferInfo;
-			delete m_writeDescriptorSets[i].pTexelBufferView;
-		}
+		vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
 	}
 
-	void DescriptorPool::init()
-	{
-		if (m_isInit)
-			return;
-		m_isInit = true;
 
-		descriptorPoolCreate(
-			m_poolSizes,
-			m_setLayoutCreateInfos,
-			m_setLayoutCreateInfoBindings,
-			m_descriptorSetCount,
-			m_descriptorSetArrayLength,
-			m_pDescriptorSets,
-			m_pDescriptorSetLayouts,
-			m_writeDescriptorSets,
-			m_writeDescriptorSetIndices,
-			m_descriptorPool
-		);
+	void DescriptorSet::destroy() {
+		vkDestroyDescriptorSetLayout(device, m_descriptorSetLayout, nullptr);
+	}
+
+	void DescriptorSet::free() {
+		vkFreeDescriptorSets(device, *m_pDescriptorPool, 1, &m_descriptorSet);
+	}
+
+	void DescriptorSet::addDescriptor(Descriptor descriptor) {
+		m_descriptors.push_back(descriptor);
+	}
+
+	void DescriptorSet::eraseDescriptor(uint32_t index) {
+		m_descriptors.erase(m_descriptors.begin()+index);
+	}
+
+	void DescriptorSet::eraseDescriptors(uint32_t offset, uint32_t range) {
+		m_descriptors.erase(m_descriptors.begin() + offset, m_descriptors.begin() + offset + range);
+	}
+
+	void DescriptorSet::setDescriptor(uint32_t index, Descriptor descriptor) {
+		m_descriptors[index] = descriptor;
+	}
+
+	void DescriptorSet::setDescriptorPool(const DescriptorPool* pDescriptorPool) {
+		m_pDescriptorPool = pDescriptorPool;
+	}
+
+	Descriptor DescriptorSet::getDescriptor(uint32_t index) {
+		return m_descriptors[index];
+	}
+
+	/*DescriptorPool*/
+	DescriptorPool::DescriptorPool(){}
+	DescriptorPool::~DescriptorPool(){}
+
+	void DescriptorPool::init() {
+		VkDescriptorPoolCreateInfo createInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+		createInfo.pNext = nullptr;
+		createInfo.flags = 0;
+		createInfo.maxSets = m_maxSets;
+		createInfo.poolSizeCount = m_poolSizes.size();
+		createInfo.pPoolSizes = m_poolSizes.data();
+
+		vkCreateDescriptorPool(device, &createInfo, nullptr, &m_descriptorPool);
 	}
 
 	void DescriptorPool::update() {
-		if (m_isInit) {
-			descriptorPoolDestroy(
-				m_descriptorSetArrayLength,
-				m_pDescriptorSets,
-				m_pDescriptorSetLayouts,
-				m_writeDescriptorSets,
-				m_descriptorPool
-			);
-		}
-		else {
-			m_isInit = true;
-		}
-
-		descriptorPoolCreate(
-			m_poolSizes,
-			m_setLayoutCreateInfos,
-			m_setLayoutCreateInfoBindings,
-			m_descriptorSetCount,
-			m_descriptorSetArrayLength,
-			m_pDescriptorSets,
-			m_pDescriptorSetLayouts,
-			m_writeDescriptorSets,
-			m_writeDescriptorSetIndices,
-			m_descriptorPool
-		);
+		destroy();
+		init();
 	}
 
-	void DescriptorPool::addDescriptorSet()
-	{
-		VkDescriptorSetLayoutCreateInfo createInfo;
-		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		createInfo.pNext = nullptr;
-		createInfo.flags = 0;
-		createInfo.bindingCount = 0;
-		createInfo.pBindings = nullptr;
-
-		m_descriptorSetCount++;
-		m_setLayoutCreateInfos.push_back(createInfo);
-		m_setLayoutCreateInfoBindings.push_back(std::vector<VkDescriptorSetLayoutBinding>());
+	void DescriptorPool::destroy() {
+		vkDestroyDescriptorPool(device, m_descriptorPool, nullptr);
 	}
 
-	void DescriptorPool::addDescriptor(const Descriptor &descriptor, uint32_t setIndex)
-	{
-		if (setIndex >= m_setLayoutCreateInfos.size())
-		{
-			std::cerr << "ERROR: DescriptorSet Index out of range: " << setIndex << "\n";
-			throw std::runtime_error("DescriptorSet Index out of range");
-		}
-
-		//add descriptor to pool sizes
-		{
-			bool typeAlreadyExists = false;
-			for (VkDescriptorPoolSize& poolSize : m_poolSizes)
-			{
-				if (poolSize.type == descriptor.type)
-				{
-					typeAlreadyExists = true;
+	void DescriptorPool::addDescriptorSet(DescriptorSet& descriptorSet) {
+		m_maxSets++;
+		for (Descriptor descriptor : descriptorSet.m_descriptors) {
+			bool typeExists = false;
+			for (VkDescriptorPoolSize& poolSize : m_poolSizes) {
+				if (descriptor.type == poolSize.type) {
 					poolSize.descriptorCount++;
+					typeExists = true;
 					break;
 				}
 			}
-			if (!typeAlreadyExists)
-			{
-				VkDescriptorPoolSize descriptorPoolSize;
-				descriptorPoolSize.type = descriptor.type;
-				descriptorPoolSize.descriptorCount = 1;
-
-				m_poolSizes.push_back(descriptorPoolSize);
+			if (!typeExists) {
+				m_poolSizes.push_back({descriptor.type, 1});
 			}
 		}
-
-		VkDescriptorSetLayoutBinding layoutBinding;
-		layoutBinding.binding = descriptor.binding;
-		layoutBinding.descriptorType = descriptor.type;
-		layoutBinding.descriptorCount = 1;
-		layoutBinding.stageFlags = descriptor.stages;
-		layoutBinding.pImmutableSamplers = nullptr;
-
-		m_setLayoutCreateInfoBindings[setIndex].push_back(layoutBinding);
-
-		VkWriteDescriptorSet writeDescriptorSet;
-		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		writeDescriptorSet.pNext = descriptor.pNext;
-		writeDescriptorSet.dstBinding = descriptor.binding;
-		writeDescriptorSet.dstArrayElement = 0;
-		writeDescriptorSet.descriptorCount = 1;
-		writeDescriptorSet.descriptorType = descriptor.type;
-		VkDescriptorImageInfo *pImageInfo = nullptr;
-		if (descriptor.pImageInfo != nullptr)
-		{
-			pImageInfo = new VkDescriptorImageInfo;
-			*pImageInfo = *descriptor.pImageInfo;
-		}
-		writeDescriptorSet.pImageInfo = pImageInfo;
-		VkDescriptorBufferInfo *pBufferInfo = nullptr;
-		if (descriptor.pBufferInfo != nullptr)
-		{
-			pBufferInfo = new VkDescriptorBufferInfo;
-			*pBufferInfo = *descriptor.pBufferInfo;
-		}
-		writeDescriptorSet.pBufferInfo = pBufferInfo;
-		VkBufferView *pTexelBufferView = nullptr;
-		if (descriptor.pTexelBufferView != nullptr)
-		{
-			pTexelBufferView = new VkBufferView;
-			*pTexelBufferView = *descriptor.pTexelBufferView;
-		}
-		writeDescriptorSet.pTexelBufferView = pTexelBufferView;
-
-		m_writeDescriptorSets.push_back(writeDescriptorSet);
-		m_writeDescriptorSetIndices.push_back(setIndex);
+		descriptorSet.m_pDescriptorPool = this;
 	}
+
+	void DescriptorPool::setMaxSets(uint32_t maxSets) {
+		m_maxSets = maxSets;
+	}
+
+	void DescriptorPool::addPoolSize(VkDescriptorPoolSize poolSize) {
+		m_poolSizes.push_back(poolSize);
+	}
+	void DescriptorPool::addPoolSize(VkDescriptorType type, uint32_t count) {
+		m_poolSizes.push_back({type, count});
+	}
+	void DescriptorPool::addPoolSizes(VkDescriptorPoolSize* poolSizes, uint32_t poolSizeCount) {
+		if (!poolSizes || poolSizeCount <= 0) return;
+		auto oldSize = m_poolSizes.size();
+		m_poolSizes.resize(m_poolSizes.size() + poolSizeCount);
+		memcpy(&m_poolSizes[oldSize], poolSizes, sizeof(VkDescriptorPoolSize)*poolSizeCount);
+	}
+
+	//void descriptorPoolCreate(
+	//	std::vector<VkDescriptorPoolSize>&                      poolSizes,
+	//	std::vector<VkDescriptorSetLayoutCreateInfo>&           setLayoutCreateInfos,
+	//	std::vector<std::vector<VkDescriptorSetLayoutBinding>>& setLayoutCreateInfoBindings,
+	//	uint32_t&                                               descriptorSetCount,
+	//	uint32_t&                                               descriptorSetArrayLength,
+	//	VkDescriptorSet*&                                       pDescriptorSets,
+	//	VkDescriptorSetLayout*&                                 pDescriptorSetLayouts,
+	//	std::vector<VkWriteDescriptorSet>&                      writeDescriptorSets,
+	//	std::vector<uint32_t>&                                  writeDescriptorSetIndices,
+	//	VkDescriptorPool&                                       m_descriptorPool
+	//) {
+	//	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
+	//	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	//	descriptorPoolCreateInfo.pNext = nullptr;
+	//	descriptorPoolCreateInfo.flags = 0;
+	//	descriptorPoolCreateInfo.maxSets = setLayoutCreateInfos.size();
+	//	descriptorPoolCreateInfo.poolSizeCount = poolSizes.size();
+	//	descriptorPoolCreateInfo.pPoolSizes = poolSizes.data();
+	//
+	//	vkCreateDescriptorPool(vk::device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool);
+	//
+	//	pDescriptorSetLayouts = new VkDescriptorSetLayout[descriptorSetCount];
+	//	descriptorSetArrayLength = descriptorSetCount;
+	//	for (int i = 0; i < descriptorSetArrayLength; i++)
+	//	{
+	//		setLayoutCreateInfos[i].bindingCount = setLayoutCreateInfoBindings[i].size();
+	//		setLayoutCreateInfos[i].pBindings = setLayoutCreateInfoBindings[i].data();
+	//		vkCreateDescriptorSetLayout(vk::device, &setLayoutCreateInfos[i], nullptr, &pDescriptorSetLayouts[i]);
+	//	}
+	//
+	//	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo;
+	//	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	//	descriptorSetAllocateInfo.pNext = nullptr;
+	//	descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
+	//	descriptorSetAllocateInfo.descriptorSetCount = descriptorSetArrayLength;
+	//	descriptorSetAllocateInfo.pSetLayouts = pDescriptorSetLayouts;
+	//
+	//	pDescriptorSets = new VkDescriptorSet[descriptorSetArrayLength];
+	//	vkAllocateDescriptorSets(vk::device, &descriptorSetAllocateInfo, pDescriptorSets);
+	//
+	//	for (int i = 0; i < writeDescriptorSets.size(); i++)
+	//	{
+	//		writeDescriptorSets[i].dstSet = pDescriptorSets[writeDescriptorSetIndices[i]];
+	//	}
+	//
+	//	vkUpdateDescriptorSets(vk::device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
+	//}
+	//
+	//void descriptorPoolDestroy(
+	//	uint32_t&                          descriptorSetArrayLenght,
+	//	VkDescriptorSet*&                  pDescriptorSets,
+	//	VkDescriptorSetLayout*&            pDescriptorSetLayouts,
+	//	std::vector<VkWriteDescriptorSet>& writeDescriptorSets,
+	//	VkDescriptorPool&                  descriptorPool
+	//) {
+	//	for (int i = 0; i < descriptorSetArrayLenght; i++)
+	//	{
+	//		vkDestroyDescriptorSetLayout(vk::device, pDescriptorSetLayouts[i], nullptr);
+	//	}
+	//	vkDestroyDescriptorPool(vk::device, descriptorPool, nullptr);
+	//
+	//	delete[] pDescriptorSetLayouts;
+	//	delete[] pDescriptorSets;
+	//}
+	//
+	//DescriptorPool::~DescriptorPool()
+	//{
+	//	if (!m_isInit)
+	//		return;
+	//	m_isInit = false;
+	//
+	//	descriptorPoolDestroy(
+	//		m_descriptorSetCount,
+	//		m_pDescriptorSets,
+	//		m_pDescriptorSetLayouts,
+	//		m_writeDescriptorSets,
+	//		m_descriptorPool
+	//	);
+	//	for (int i = 0; i < m_writeDescriptorSets.size(); i++)
+	//	{
+	//		delete m_writeDescriptorSets[i].pImageInfo;
+	//		delete m_writeDescriptorSets[i].pBufferInfo;
+	//		delete m_writeDescriptorSets[i].pTexelBufferView;
+	//	}
+	//}
+	//
+	//void DescriptorPool::init()
+	//{
+	//	if (m_isInit)
+	//		return;
+	//	m_isInit = true;
+	//
+	//	descriptorPoolCreate(
+	//		m_poolSizes,
+	//		m_setLayoutCreateInfos,
+	//		m_setLayoutCreateInfoBindings,
+	//		m_descriptorSetCount,
+	//		m_descriptorSetArrayLength,
+	//		m_pDescriptorSets,
+	//		m_pDescriptorSetLayouts,
+	//		m_writeDescriptorSets,
+	//		m_writeDescriptorSetIndices,
+	//		m_descriptorPool
+	//	);
+	//}
+	//
+	//void DescriptorPool::update() {
+	//	if (m_isInit) {
+	//		descriptorPoolDestroy(
+	//			m_descriptorSetArrayLength,
+	//			m_pDescriptorSets,
+	//			m_pDescriptorSetLayouts,
+	//			m_writeDescriptorSets,
+	//			m_descriptorPool
+	//		);
+	//	}
+	//	else {
+	//		m_isInit = true;
+	//	}
+	//
+	//	descriptorPoolCreate(
+	//		m_poolSizes,
+	//		m_setLayoutCreateInfos,
+	//		m_setLayoutCreateInfoBindings,
+	//		m_descriptorSetCount,
+	//		m_descriptorSetArrayLength,
+	//		m_pDescriptorSets,
+	//		m_pDescriptorSetLayouts,
+	//		m_writeDescriptorSets,
+	//		m_writeDescriptorSetIndices,
+	//		m_descriptorPool
+	//	);
+	//}
+	//
+	//void DescriptorPool::addDescriptorSet()
+	//{
+	//	VkDescriptorSetLayoutCreateInfo createInfo;
+	//	createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	//	createInfo.pNext = nullptr;
+	//	createInfo.flags = 0;
+	//	createInfo.bindingCount = 0;
+	//	createInfo.pBindings = nullptr;
+	//
+	//	m_descriptorSetCount++;
+	//	m_setLayoutCreateInfos.push_back(createInfo);
+	//	m_setLayoutCreateInfoBindings.push_back(std::vector<VkDescriptorSetLayoutBinding>());
+	//}
+	//
+	//void DescriptorPool::addDescriptor(const Descriptor &descriptor, uint32_t setIndex)
+	//{
+	//	if (setIndex >= m_setLayoutCreateInfos.size())
+	//	{
+	//		std::cerr << "ERROR: DescriptorSet Index out of range: " << setIndex << "\n";
+	//		throw std::runtime_error("DescriptorSet Index out of range");
+	//	}
+	//
+	//	//add descriptor to pool sizes
+	//	{
+	//		bool typeAlreadyExists = false;
+	//		for (VkDescriptorPoolSize& poolSize : m_poolSizes)
+	//		{
+	//			if (poolSize.type == descriptor.type)
+	//			{
+	//				typeAlreadyExists = true;
+	//				poolSize.descriptorCount++;
+	//				break;
+	//			}
+	//		}
+	//		if (!typeAlreadyExists)
+	//		{
+	//			VkDescriptorPoolSize descriptorPoolSize;
+	//			descriptorPoolSize.type = descriptor.type;
+	//			descriptorPoolSize.descriptorCount = 1;
+	//
+	//			m_poolSizes.push_back(descriptorPoolSize);
+	//		}
+	//	}
+	//
+	//	VkDescriptorSetLayoutBinding layoutBinding;
+	//	layoutBinding.binding = descriptor.binding;
+	//	layoutBinding.descriptorType = descriptor.type;
+	//	layoutBinding.descriptorCount = 1;
+	//	layoutBinding.stageFlags = descriptor.stages;
+	//	layoutBinding.pImmutableSamplers = nullptr;
+	//
+	//	m_setLayoutCreateInfoBindings[setIndex].push_back(layoutBinding);
+	//
+	//	VkWriteDescriptorSet writeDescriptorSet;
+	//	writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	//	writeDescriptorSet.pNext = descriptor.pNext;
+	//	writeDescriptorSet.dstBinding = descriptor.binding;
+	//	writeDescriptorSet.dstArrayElement = 0;
+	//	writeDescriptorSet.descriptorCount = 1;
+	//	writeDescriptorSet.descriptorType = descriptor.type;
+	//	VkDescriptorImageInfo *pImageInfo = nullptr;
+	//	if (descriptor.pImageInfo != nullptr)
+	//	{
+	//		pImageInfo = new VkDescriptorImageInfo;
+	//		*pImageInfo = *descriptor.pImageInfo;
+	//	}
+	//	writeDescriptorSet.pImageInfo = pImageInfo;
+	//	VkDescriptorBufferInfo *pBufferInfo = nullptr;
+	//	if (descriptor.pBufferInfo != nullptr)
+	//	{
+	//		pBufferInfo = new VkDescriptorBufferInfo;
+	//		*pBufferInfo = *descriptor.pBufferInfo;
+	//	}
+	//	writeDescriptorSet.pBufferInfo = pBufferInfo;
+	//	VkBufferView *pTexelBufferView = nullptr;
+	//	if (descriptor.pTexelBufferView != nullptr)
+	//	{
+	//		pTexelBufferView = new VkBufferView;
+	//		*pTexelBufferView = *descriptor.pTexelBufferView;
+	//	}
+	//	writeDescriptorSet.pTexelBufferView = pTexelBufferView;
+	//
+	//	m_writeDescriptorSets.push_back(writeDescriptorSet);
+	//	m_writeDescriptorSetIndices.push_back(setIndex);
+	//}
 
 	/*Shader*/
 	Shader::Shader()
@@ -1326,197 +1502,7 @@ namespace vk
 		vkCreateCommandPool(device, &createInfo, nullptr, &commandPool);
 	}
 
-	// Raytracing
-	BlasInput objToVkGeometry(vk::Buffer vertexBuffer, uint32_t vertexStride, vk::Buffer indexBuffer) {
-		auto vertexAddress = vkUtils::getBufferDeviceAddress(device, vertexBuffer);
-		auto indexAddress = vkUtils::getBufferDeviceAddress(device, indexBuffer);
-
-		uint32_t maxPrimitiveCount = indexBuffer.getSize()/(sizeof(uint32_t)*3);
-
-		VkAccelerationStructureGeometryTrianglesDataKHR triangleData{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR };
-		triangleData.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-		triangleData.vertexData.deviceAddress = vertexAddress;
-		triangleData.vertexStride = vertexStride;
-
-		triangleData.indexType = VK_INDEX_TYPE_UINT32;
-		triangleData.indexData.deviceAddress = indexAddress;
-
-		triangleData.maxVertex = vertexBuffer.getSize() / vertexStride;
-
-		VkAccelerationStructureGeometryKHR asGeometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
-		asGeometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-		asGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
-		asGeometry.geometry.triangles = triangleData;
-
-		VkAccelerationStructureBuildRangeInfoKHR offset;
-		offset.firstVertex = 0;
-		offset.primitiveCount = maxPrimitiveCount;
-		offset.primitiveOffset = 0;
-		offset.transformOffset = 0;
-
-		BlasInput input{};
-		input.asGeometry.push_back(asGeometry);
-		input.asBuildOffsetInfo.push_back(offset);
-
-		return input;
-	}
-
-	void createBottomLevelAccelerationStructures(const std::vector<BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags, std::vector<Buffer>& blasBuffers, std::vector<VkAccelerationStructureKHR>& blas) //TODO add AccelerationStructure compaction
-	{
-		uint32_t nbBlas = input.size();
-		VkDeviceSize asTotalSize{ 0 };     // Memory size of all allocated BLAS
-		uint32_t     nbCompactions{ 0 };   // Nb of BLAS requesting compaction
-		VkDeviceSize maxScratchSize{ 0 };  // Largest scratch size
-
-		std::vector<BlasInfo> blasInfos(nbBlas);
-		for (uint32_t i = 0; i < nbBlas; i++) {
-			blasInfos[i].buildGeometryInfo.pNext = nullptr;
-			blasInfos[i].buildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-			blasInfos[i].buildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-			blasInfos[i].buildGeometryInfo.flags = flags;
-			blasInfos[i].buildGeometryInfo.geometryCount = input[i].asGeometry.size();
-			blasInfos[i].buildGeometryInfo.pGeometries = input[i].asGeometry.data();
-
-			blasInfos[i].rangeInfo = input[i].asBuildOffsetInfo.data();
-
-			std::vector<uint32_t> maxPrimCount(input[i].asBuildOffsetInfo.size());
-			for (uint32_t tt = 0; tt < input[i].asBuildOffsetInfo.size(); tt++) {
-				maxPrimCount[tt] = input[i].asBuildOffsetInfo[tt].primitiveCount;
-			}
-			vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
-				&blasInfos[i].buildGeometryInfo, maxPrimCount.data(), &blasInfos[i].sizeInfo);
-
-			asTotalSize += blasInfos[i].sizeInfo.accelerationStructureSize;
-			maxScratchSize = std::max(maxScratchSize, blasInfos[i].sizeInfo.buildScratchSize);
-		}
-
-		Buffer scratchBuffer = Buffer(maxScratchSize, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		scratchBuffer.init(); scratchBuffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT); //???
-		VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer};
-		VkDeviceAddress           scratchAddress = vkGetBufferDeviceAddress(device, &bufferInfo);
-
-		// Batching creation/compaction of BLAS to allow staying in restricted amount of memory
-		std::vector<uint32_t> indices;  // Indices of the BLAS to create
-		VkDeviceSize          batchSize{ 0 };
-		VkDeviceSize          batchLimit{ 256'000'000 };  // 256 MB
-
-		for (uint32_t i = 0; i < nbBlas; i++) {
-			indices.push_back(i);
-			batchSize += blasInfos[i].sizeInfo.accelerationStructureSize;
-			if (batchSize >= batchLimit || i == nbBlas - 1) {
-				CommandBuffer cmd;
-				cmd.allocate();
-				cmd.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-				for (uint32_t j : indices) {
-					VkAccelerationStructureCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
-					createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-					createInfo.size = blasInfos[j].sizeInfo.accelerationStructureSize;
-
-					blasBuffers.push_back(Buffer(createInfo.size,
-						VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-					));
-					blasBuffers.back().init(); blasBuffers.back().allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-					createInfo.buffer = blasBuffers.back();
-					blas.push_back(VkAccelerationStructureKHR());
-					vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &blas.back());
-
-					blasInfos[j].buildGeometryInfo.dstAccelerationStructure = blas[j];
-					blasInfos[j].buildGeometryInfo.scratchData.deviceAddress = scratchAddress;
-
-					vkCmdBuildAccelerationStructuresKHR(cmd, 1, &blasInfos[j].buildGeometryInfo, &blasInfos[j].rangeInfo);
-
-					VkMemoryBarrier barrier{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
-					barrier.srcAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
-					barrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
-					vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
-						VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 1, &barrier, 0, nullptr, 0, nullptr);
-				}
-				cmd.end();
-				cmd.submit();
-				cmd.free();
-
-				batchSize = 0;
-				indices.clear();
-			}
-		}
-
-		scratchBuffer.destroy();
-	}
-
-	void createTopLevelAccelerationStructure(std::vector<VkAccelerationStructureInstanceKHR> &instances, VkAccelerationStructureKHR &accelerationStructure) {
-		uint32_t countInstances = static_cast<uint32_t>(instances.size());
-
-		Buffer instanceBuffer = Buffer(
-			countInstances * sizeof(VkAccelerationStructureInstanceKHR), 
-			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-		);
-		instanceBuffer.init(); instanceBuffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		instanceBuffer.uploadData(instanceBuffer.getSize(), instances.data());
-
-		VkBufferDeviceAddressInfo bufferDeviceAddressInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr};
-		bufferDeviceAddressInfo.buffer = instanceBuffer;
-		VkDeviceAddress instBufferAddr = vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo);
-
-		VkAccelerationStructureGeometryInstancesDataKHR instancesData{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR};
-		instancesData.data.deviceAddress = instBufferAddr;
-
-		VkAccelerationStructureGeometryKHR topASGeometry{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
-		topASGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
-		topASGeometry.geometry.instances = instancesData;
-
-		VkAccelerationStructureBuildGeometryInfoKHR buildGeometryInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
-		buildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-		buildGeometryInfo.geometryCount = 1;
-		buildGeometryInfo.pGeometries = &topASGeometry;
-		buildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-		buildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-		buildGeometryInfo.srcAccelerationStructure = VK_NULL_HANDLE;
-
-		VkAccelerationStructureBuildSizesInfoKHR sizeInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
-		vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildGeometryInfo, &countInstances, &sizeInfo);
-
-		VkBuffer accelBuffer;
-		VkDeviceMemory accelDeviceMemory;
-		vkUtils::createBuffer(device, physicalDevice, sizeInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, accelDeviceMemory, accelBuffer);
-
-		VkAccelerationStructureCreateInfoKHR createInfo;
-		createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-		createInfo.pNext = nullptr;
-		createInfo.createFlags = 0;
-		createInfo.buffer = accelBuffer;
-		createInfo.offset = 0;
-		createInfo.size = sizeInfo.accelerationStructureSize;
-		createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-		createInfo.deviceAddress = 0;
-
-		vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &accelerationStructure);
-
-		Buffer scratchBuffer = Buffer(sizeInfo.buildScratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-		scratchBuffer.init(); scratchBuffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-		VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer };
-		VkDeviceAddress           scratchAddress = vkGetBufferDeviceAddress(device, &bufferInfo);
-
-		buildGeometryInfo.dstAccelerationStructure = accelerationStructure;
-		buildGeometryInfo.scratchData.deviceAddress = scratchAddress;
-
-		VkAccelerationStructureBuildRangeInfoKHR        buildOffsetInfo{ instances.size(), 0, 0, 0 };
-		const VkAccelerationStructureBuildRangeInfoKHR* pBuildOffsetInfo = &buildOffsetInfo;
-
-		CommandBuffer cmd; cmd.allocate(); cmd.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-
-		vkCmdBuildAccelerationStructuresKHR(cmd, 1, &buildGeometryInfo, &pBuildOffsetInfo);
-
-		cmd.end(); cmd.submit(); cmd.free();
-	}
-	
-	VkDeviceAddress getAccelerationStructureDeviceAddress(VkAccelerationStructureKHR accelerationStructure) {
-		VkAccelerationStructureDeviceAddressInfoKHR addressInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
-		addressInfo.accelerationStructure = accelerationStructure;
-		return vkGetAccelerationStructureDeviceAddressKHR(device, &addressInfo);
-	}
-
+	/*Raytracing*/
 	AccelerationStructureInstance::AccelerationStructureInstance() {}
 	AccelerationStructureInstance::AccelerationStructureInstance(AccelerationStructure accelerationStructure) {
 		m_instance.accelerationStructureReference = accelerationStructure.getDeviceAddress();
@@ -1547,6 +1533,7 @@ namespace vk
 		m_instance.flags = flags;
 	}
 
+	/*AccelerationStructure*/
 	AccelerationStructure::AccelerationStructure() {
 
 	}
@@ -1559,7 +1546,7 @@ namespace vk
 		buildGeometryInfo.pNext = nullptr;
 		buildGeometryInfo.type = m_type;
 		buildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-		buildGeometryInfo.flags = 0;
+		buildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
 		buildGeometryInfo.geometryCount = m_geometryVector.size();
 		buildGeometryInfo.pGeometries = m_geometryVector.data();
 
@@ -1607,10 +1594,38 @@ namespace vk
 	}
 
 	void AccelerationStructure::update() {
+		VkAccelerationStructureBuildGeometryInfoKHR buildGeometryInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
+		buildGeometryInfo.pNext = nullptr;
+		buildGeometryInfo.type = m_type;
+		buildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR;
+		buildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+		buildGeometryInfo.geometryCount = m_geometryVector.size();
+		buildGeometryInfo.pGeometries = m_geometryVector.data();
 
+		VkAccelerationStructureBuildSizesInfoKHR sizeInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
+
+		vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+			&buildGeometryInfo, &m_buildRangeInfoVector[0].primitiveCount, &sizeInfo);
+
+		Buffer scratchBuffer = Buffer(sizeInfo.buildScratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+		scratchBuffer.init(); scratchBuffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		buildGeometryInfo.srcAccelerationStructure = m_accelerationStructure;
+		buildGeometryInfo.dstAccelerationStructure = m_accelerationStructure;
+		buildGeometryInfo.scratchData.deviceAddress = scratchBuffer.getVkDeviceAddress();
+
+		VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfo = &m_buildRangeInfoVector[0];
+
+		CommandBuffer cmd; cmd.allocate(); cmd.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+		vkCmdBuildAccelerationStructuresKHR(cmd, 1, &buildGeometryInfo, &pBuildRangeInfo);
+
+		cmd.end(); cmd.submit(); cmd.free();
+
+		scratchBuffer.destroy();
 	}
 
-	void AccelerationStructure::addGeometry(std::vector<AccelerationStructureInstance> instances) {
+	void AccelerationStructure::addGeometry(std::vector<AccelerationStructureInstance>& instances) {
 		uint32_t countInstances = static_cast<uint32_t>(instances.size());
 
 		m_instanceBuffer = Buffer(
@@ -1633,6 +1648,13 @@ namespace vk
 
 		m_geometryVector.push_back(instanceGeometry);
 		m_buildRangeInfoVector.push_back({(uint32_t)instances.size(), 0, 0, 0});
+	}
+
+	void AccelerationStructure::updateGeometry(std::vector<AccelerationStructureInstance>& instances) { // TODO add offset etc. options
+		if (instances.size() > m_instanceBuffer.getSize() / sizeof(AccelerationStructureInstance)) {
+			throw std::runtime_error("ERROR: vector too big");
+		}
+		m_instanceBuffer.uploadData(instances.size() * sizeof(AccelerationStructureInstance), instances.data());
 	}
 
 	void AccelerationStructure::addGeometry(Buffer vertexBuffer, uint32_t vertexStride, Buffer indexBuffer) {
@@ -1672,6 +1694,7 @@ namespace vk
 		return vkGetAccelerationStructureDeviceAddressKHR(device, &addressInfo);
 	}
 
+	/*RtPipeline*/
 	RtPipeline::RtPipeline(){}
 
 	RtPipeline::~RtPipeline(){}
@@ -1882,6 +1905,7 @@ void initVulkan(vk::initInfo info)
 
 	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
 	VkPhysicalDeviceFeatures usedDeviceFeatures{};
+	usedDeviceFeatures.shaderInt64 = true;
 	std::vector<const char *> enabledDeviceLayers = {};
 	std::vector<const char *> enabledDeviceExtensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
