@@ -318,15 +318,14 @@ namespace vk
 		VkMemoryRequirements memoryRequirements;
 		vkGetBufferMemoryRequirements(vk::device, m_buffer, &memoryRequirements);
 
-
 		VkMemoryAllocateInfo allocateInfo;
 		allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocateInfo.pNext = nullptr;
 		allocateInfo.allocationSize = memoryRequirements.size;
 		allocateInfo.memoryTypeIndex = vkUtils::findMemoryTypeIndex(vk::physicalDevice, memoryRequirements.memoryTypeBits, memoryPropertyFlags);
 
-		if ((m_usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) == VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
-			VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO };
+		VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO };
+		if (VK_IS_FLAG_ENABLED(m_usage, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)) {
 			memoryAllocateFlagsInfo.flags |= VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
 			allocateInfo.pNext = &memoryAllocateFlagsInfo;
 		}
@@ -346,7 +345,7 @@ namespace vk
 	{
 		if ((m_memoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
 		{
-			std::cerr << "Memory is not host visible: enable VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT\n";
+			std::cerr << "ERROR: Memory is not host visible: enable VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT\n";
 			throw std::runtime_error("Memory is not host visible");
 		}
 		vkMapMemory(vk::device, m_deviceMemory, offset, m_size, 0, data);
@@ -385,6 +384,10 @@ namespace vk
 	}
 
 	VkDeviceAddress Buffer::getVkDeviceAddress() {
+		if (!VK_IS_FLAG_ENABLED(m_usage, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)) {
+			std::cerr << "ERROR: Buffer usage shader address is not enabled, enable VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT\n";
+			throw std::runtime_error("Usage flag not set");
+		}
 		VkBufferDeviceAddressInfo bufferDeviceAddressInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr };
 		bufferDeviceAddressInfo.buffer = m_buffer;
 		return vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo);
@@ -1635,12 +1638,8 @@ namespace vk
 		m_instanceBuffer.init(); m_instanceBuffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 		m_instanceBuffer.uploadData(m_instanceBuffer.getSize(), instances.data());
 
-		VkBufferDeviceAddressInfo bufferDeviceAddressInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr };
-		bufferDeviceAddressInfo.buffer = m_instanceBuffer;
-		VkDeviceAddress instBufferAddr = vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo);
-
 		VkAccelerationStructureGeometryInstancesDataKHR instancesData{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR };
-		instancesData.data.deviceAddress = instBufferAddr;
+		instancesData.data.deviceAddress = m_instanceBuffer.getVkDeviceAddress();
 
 		VkAccelerationStructureGeometryKHR instanceGeometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
 		instanceGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
@@ -1748,8 +1747,7 @@ namespace vk
 			| VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR);
 		m_rtSBTBuffer.init(); m_rtSBTBuffer.allocate(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-		VkBufferDeviceAddressInfo bufferDeviceAddressInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_rtSBTBuffer };
-		VkDeviceAddress           sbtAddress = vkGetBufferDeviceAddress(device, &bufferDeviceAddressInfo);
+		VkDeviceAddress           sbtAddress = m_rtSBTBuffer.getVkDeviceAddress();
 		m_rgenRegion.deviceAddress = sbtAddress;
 		m_missRegion.deviceAddress = sbtAddress + m_rgenRegion.size;
 		m_hitRegion.deviceAddress = sbtAddress + m_rgenRegion.size + m_missRegion.size;

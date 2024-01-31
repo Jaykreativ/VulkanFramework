@@ -12,6 +12,8 @@
 				throw std::runtime_error("Vulkan Error!");\
 			}
 
+#define VK_IS_FLAG_ENABLED(val, flag) ((val & flag) == flag)
+
 namespace vkUtils {
 	namespace queueHandler {
 		bool isInitialized();
