@@ -77,20 +77,25 @@ namespace vk
 			prios[i] = 1.0f;
 		deviceQueueCreateInfo.pQueuePriorities = prios.data();
 
+		VkPhysicalDeviceVulkan12Features vulkan12Features{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+		vulkan12Features.runtimeDescriptorArray = true;
+		vulkan12Features.bufferDeviceAddress = true;
+
 		VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
+		accelerationStructureFeatures.pNext = &vulkan12Features;
 		accelerationStructureFeatures.accelerationStructure = true;
 
-		VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES};
-		bufferDeviceAddressFeatures.pNext = &accelerationStructureFeatures;
-		bufferDeviceAddressFeatures.bufferDeviceAddress = true;
-
 		VkPhysicalDeviceRayTracingPipelineFeaturesKHR raytracingPipelineFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
-		raytracingPipelineFeatures.pNext = &bufferDeviceAddressFeatures;
+		raytracingPipelineFeatures.pNext = &accelerationStructureFeatures;
 		raytracingPipelineFeatures.rayTracingPipeline = true;
+
+		VkPhysicalDeviceFeatures2 features2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+		features2.pNext = &raytracingPipelineFeatures;
+		features2.features.shaderInt64 = true;
 
 		VkDeviceCreateInfo deviceCreateInfo;
 		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		deviceCreateInfo.pNext = &raytracingPipelineFeatures;
+		deviceCreateInfo.pNext = &features2;
 		deviceCreateInfo.flags = 0;
 		deviceCreateInfo.queueCreateInfoCount = 1;
 		deviceCreateInfo.pQueueCreateInfos = &deviceQueueCreateInfo;
@@ -98,7 +103,7 @@ namespace vk
 		deviceCreateInfo.ppEnabledLayerNames = enabledLayers.data();
 		deviceCreateInfo.enabledExtensionCount = enabledExtensions.size();
 		deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
-		deviceCreateInfo.pEnabledFeatures = &usedFeatures;// TODO add way to add features as user
+		deviceCreateInfo.pEnabledFeatures = nullptr;// TODO add way to add features as user
 
 		VkResult result = vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device);
 		VK_ASSERT(result);
@@ -542,7 +547,38 @@ namespace vk
 		init();
 		allocate(m_memoryProperties);
 		initView();
-		changeLayout(oldLayout, oldAccessMask);
+		if (oldLayout != VK_IMAGE_LAYOUT_PREINITIALIZED && oldLayout != VK_IMAGE_LAYOUT_UNDEFINED) {
+			changeLayout(oldLayout, oldAccessMask);
+		}
+	}
+
+	void Image::resize(uint32_t width, uint32_t height, uint32_t depth) {
+		m_extent = { width, height, depth };
+		update();
+	}
+
+	void Image::uploadData(uint32_t size, void* data) {
+		if (!VK_IS_FLAG_ENABLED(m_usage, VK_IMAGE_USAGE_TRANSFER_DST_BIT))
+		{
+			std::cerr << "Image cant be destination of upload transfer: enable VK_IMAGE_USAGE_TRANSFER_DST_BIT\n";
+			throw std::runtime_error("Image cant be destination of upload transfer");
+		}
+		Buffer stagingBuffer = Buffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+		stagingBuffer.init();
+		stagingBuffer.allocate(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+		//float* test = (float*)data;
+		//for (uint32_t i = 0; i < size / sizeof(float); i++) {
+		//	std::cout << test[i] << ", ";
+		//}
+
+		void* rawData;
+		stagingBuffer.map(&rawData);
+		memcpy(rawData, data, size);
+		stagingBuffer.unmap();
+
+		Image::copyBufferToImage(this, &stagingBuffer, size);
+		stagingBuffer.destroy();
 	}
 
 	void Image::cmdChangeLayout(VkCommandBuffer cmd, VkImageLayout layout, VkAccessFlags dstAccessMask) {
@@ -557,6 +593,29 @@ namespace vk
 		m_accessMask = dstAccessMask;
 	}
 
+	void Image::copyBufferToImage(vk::Image* dst, vk::Buffer* src, VkDeviceSize size) {
+		CommandBuffer commandBuffer = CommandBuffer(true);
+		commandBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+		VkBufferImageCopy bufferImageCopy;
+		bufferImageCopy.bufferOffset = 0;
+		bufferImageCopy.bufferRowLength = 0;
+		bufferImageCopy.bufferImageHeight = 0;
+		bufferImageCopy.imageSubresource.aspectMask = dst->m_subresourceRange.aspectMask;
+		bufferImageCopy.imageSubresource.mipLevel = dst->m_subresourceRange.baseMipLevel;
+		bufferImageCopy.imageSubresource.baseArrayLayer = dst->m_subresourceRange.baseArrayLayer;
+		bufferImageCopy.imageSubresource.layerCount = 1;
+		bufferImageCopy.imageOffset = { 0, 0, 0 };
+		bufferImageCopy.imageExtent = dst->m_extent;
+
+		vkCmdCopyBufferToImage(commandBuffer.getVkCommandBuffer(), *src, *dst, dst->getLayout(), 1, &bufferImageCopy);
+
+		commandBuffer.end();
+		commandBuffer.submit();
+		commandBuffer.free();
+	}
+
+	/*Sampler*/
 	Sampler::Sampler() {}
 	Sampler::~Sampler() {}
 
@@ -732,7 +791,7 @@ namespace vk
 			auto& descriptor = m_descriptors[i];
 			binding.binding = descriptor.binding;
 			binding.descriptorType = descriptor.type;
-			binding.descriptorCount = 1;
+			binding.descriptorCount = descriptor.count;
 			binding.stageFlags = descriptor.stages;
 			binding.pImmutableSamplers = nullptr;
 		}
@@ -759,7 +818,7 @@ namespace vk
 		vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &m_descriptorSet);
 	}
 
-	void DescriptorSet::update() {
+	void DescriptorSet::update() {// fix pNext 
 		uint32_t writeCount = m_descriptors.size();
 		VkWriteDescriptorSet* pWrites = new VkWriteDescriptorSet[writeCount];
 
@@ -771,7 +830,7 @@ namespace vk
 			write.dstSet = m_descriptorSet;
 			write.dstBinding = descriptor.binding;
 			write.dstArrayElement = 0;
-			write.descriptorCount = 1;
+			write.descriptorCount = descriptor.count;
 			write.descriptorType = descriptor.type;
 			write.pImageInfo = descriptor.pImageInfo;
 			write.pBufferInfo = descriptor.pBufferInfo;
@@ -799,7 +858,6 @@ namespace vk
 
 		vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
 	}
-
 
 	void DescriptorSet::destroy() {
 		vkDestroyDescriptorSetLayout(device, m_descriptorSetLayout, nullptr);
@@ -1656,11 +1714,11 @@ namespace vk
 		m_instanceBuffer.uploadData(instances.size() * sizeof(AccelerationStructureInstance), instances.data());
 	}
 
-	void AccelerationStructure::addGeometry(Buffer vertexBuffer, uint32_t vertexStride, Buffer indexBuffer) {
+	void AccelerationStructure::addGeometry(Buffer& vertexBuffer, uint32_t vertexStride, Buffer& indexBuffer) {
 		auto vertexAddress = vkUtils::getBufferDeviceAddress(device, vertexBuffer);
 		auto indexAddress = vkUtils::getBufferDeviceAddress(device, indexBuffer);
 
-		uint32_t maxPrimitiveCount = indexBuffer.getSize() / (sizeof(uint32_t) * 3);
+		uint32_t primitiveCount = indexBuffer.getSize() / (sizeof(uint32_t) * 3.0f);
 
 		VkAccelerationStructureGeometryTrianglesDataKHR triangleData{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR };
 		triangleData.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
@@ -1679,7 +1737,7 @@ namespace vk
 
 		VkAccelerationStructureBuildRangeInfoKHR offset;
 		offset.firstVertex = 0;
-		offset.primitiveCount = maxPrimitiveCount;
+		offset.primitiveCount = primitiveCount;
 		offset.primitiveOffset = 0;
 		offset.transformOffset = 0;
 
@@ -1715,15 +1773,30 @@ namespace vk
 		rtPipelineCreateInfo.pStages = m_stages.data();
 		rtPipelineCreateInfo.groupCount = m_shaderGroupes.size();
 		rtPipelineCreateInfo.pGroups = m_shaderGroupes.data();
-		rtPipelineCreateInfo.maxPipelineRayRecursionDepth = 1;
+		rtPipelineCreateInfo.maxPipelineRayRecursionDepth = 10;
 		rtPipelineCreateInfo.layout = m_pipelineLayout;
 
 		vkCreateRayTracingPipelinesKHR(device, {}, {}, 1, &rtPipelineCreateInfo, nullptr, &m_pipeline);
 	}
 
 	void RtPipeline::initShaderBindingTable() {
-		uint32_t missCount{ 1 };
-		uint32_t hitCount{ 1 };
+		uint32_t missCount = 0;
+		uint32_t hitCount = 0;
+		for (auto group : m_shaderGroupes) {
+			switch (group.type)
+			{
+			case VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR:
+				if (m_stages[group.generalShader].stage == VK_SHADER_STAGE_MISS_BIT_KHR)
+					missCount++;
+				break;
+			case VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR:
+				hitCount++;
+				break;
+			case VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR:
+				hitCount++;
+				break;
+			}
+		}
 		auto     handleCount = 1 + missCount + hitCount;
 		uint32_t handleSize = rtProperties.shaderGroupHandleSize;
 
@@ -1901,7 +1974,6 @@ void initVulkan(vk::initInfo info)
 	vk::createInstance(vk::instance, enabledInstanceLayers, enabledInstanceExtensions, info.applicationName); // Create Instance
 	vk::physicalDevice = vkUtils::getAllPhysicalDevices(vk::instance)[info.deviceIndex];
 
-	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
 	VkPhysicalDeviceFeatures usedDeviceFeatures{};
 	usedDeviceFeatures.shaderInt64 = true;
 	std::vector<const char *> enabledDeviceLayers = {};

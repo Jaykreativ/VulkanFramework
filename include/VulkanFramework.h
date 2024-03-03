@@ -165,6 +165,10 @@ namespace vk
 
 		void update();
 
+		void resize(uint32_t width, uint32_t height, uint32_t depth = 1);
+
+		void uploadData(uint32_t size, void* data);
+
 		void cmdChangeLayout(VkCommandBuffer cmd, VkImageLayout layout, VkAccessFlags dstAccessMask);
 		void changeLayout(VkImageLayout layout, VkAccessFlags dstAccessMask);
 
@@ -181,11 +185,11 @@ namespace vk
 		void setExtent(uint32_t width, uint32_t height, uint32_t depth) { m_extent = { width, height, depth }; }
 		void setExtent(VkExtent3D extent) { m_extent = extent; }
 
-		void setWidth(uint32_t width) { m_extent.width = width; }
+		void setWidth(uint32_t width) { m_extent.width = std::max<uint32_t>(width, 1); }
 
-		void setHeight(uint32_t height) { m_extent.height = height; }
+		void setHeight(uint32_t height) { m_extent.height = std::max<uint32_t>(height, 1); }
 
-		void setDepth(uint32_t depth) { m_extent.depth = depth; }
+		void setDepth(uint32_t depth) { m_extent.depth = std::max<uint32_t>(depth, 1); }
 
 		void setMemoryProperties(VkMemoryPropertyFlags memoryProperties) {
 			m_memoryProperties = memoryProperties;
@@ -206,6 +210,8 @@ namespace vk
 		uint32_t getMipLevelCount() { return m_mipLevelCount; }
 
 		VkExtent3D getExtent() { return m_extent; }
+
+		static void copyBufferToImage(vk::Image* dst, vk::Buffer* src, VkDeviceSize size);
 
 	private:
 		bool m_isInit = false;
@@ -335,6 +341,7 @@ namespace vk
 	struct Descriptor {//TODO descriptor count
 		const void*                   pNext;
 		VkDescriptorType              type;
+		uint32_t                      count = 1;
 		VkShaderStageFlags            stages;
 		uint32_t                      binding;
 		const VkDescriptorImageInfo*  pImageInfo;
@@ -765,7 +772,7 @@ namespace vk
 
 		void updateGeometry(std::vector<AccelerationStructureInstance>& instances);
 
-		void addGeometry(Buffer vertexBuffer, uint32_t vertexStride, Buffer indexBuffer);
+		void addGeometry(Buffer& vertexBuffer, uint32_t vertexStride, Buffer& indexBuffer);
 
 		VkDeviceAddress getDeviceAddress();
 
