@@ -104,7 +104,7 @@ namespace vk
 		void map(void** ptr);
 		void map(VkDeviceSize offset, void** ptr);
 
-		void resize(VkDeviceSize size) { m_size = size; }
+		void resize(VkDeviceSize size) { m_size = size; } // TODO make update automatic and add a setSize method
 
 		void unmap();
 
@@ -735,7 +735,7 @@ namespace vk
 	class AccelerationStructureInstance {
 	public:
 		AccelerationStructureInstance();
-		AccelerationStructureInstance(AccelerationStructure accelerationStructure);
+		AccelerationStructureInstance(AccelerationStructure& accelerationStructure);
 		~AccelerationStructureInstance();
 
 		void setTransform(VkTransformMatrixKHR transform);
@@ -774,6 +774,8 @@ namespace vk
 
 		void addGeometry(Buffer& vertexBuffer, uint32_t vertexStride, Buffer& indexBuffer);
 
+		void addGeometry(float aabbMax[3], float aabbMin[3]);
+
 		VkDeviceAddress getDeviceAddress();
 
 	private:
@@ -781,6 +783,7 @@ namespace vk
 		VkAccelerationStructureKHR m_accelerationStructure;
 
 		VkAccelerationStructureTypeKHR m_type; // Has to be set by user before initializing
+		std::vector<vk::Buffer*> m_additionalBuffers; // Buffers like aabb buffers etc.
 		std::vector<VkAccelerationStructureGeometryKHR> m_geometryVector;
 		std::vector<VkAccelerationStructureBuildRangeInfoKHR> m_buildRangeInfoVector;
 		Buffer m_instanceBuffer;

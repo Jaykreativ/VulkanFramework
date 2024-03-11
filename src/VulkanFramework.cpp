@@ -1565,7 +1565,7 @@ namespace vk
 
 	/*Raytracing*/
 	AccelerationStructureInstance::AccelerationStructureInstance() {}
-	AccelerationStructureInstance::AccelerationStructureInstance(AccelerationStructure accelerationStructure) {
+	AccelerationStructureInstance::AccelerationStructureInstance(AccelerationStructure& accelerationStructure) {
 		m_instance.accelerationStructureReference = accelerationStructure.getDeviceAddress();
 		m_instance.instanceCustomIndex = 0;
 		m_instance.flags = 0;
@@ -1649,6 +1649,11 @@ namespace vk
 	}
 
 	void AccelerationStructure::destroy() {
+		for (auto buffer : m_additionalBuffers) {
+			buffer->destroy();
+			delete buffer;
+		}
+		m_additionalBuffers.clear();
 		m_buffer.destroy();
 		m_instanceBuffer.destroy();
 		vkDestroyAccelerationStructureKHR(device, m_accelerationStructure, nullptr);
@@ -1708,7 +1713,8 @@ namespace vk
 	}
 
 	void AccelerationStructure::updateGeometry(std::vector<AccelerationStructureInstance>& instances) { // TODO add offset etc. options
-		if (instances.size() > m_instanceBuffer.getSize() / sizeof(AccelerationStructureInstance)) {
+		if (instances.size() != m_instanceBuffer.getSize() / sizeof(AccelerationStructureInstance)) {
+			std::cerr << "Vector and Buffer size aren't equal: " << instances.size() << " != " << m_instanceBuffer.getSize() / sizeof(AccelerationStructureInstance) << "\n";
 			throw std::runtime_error("ERROR: vector too big");
 		}
 		m_instanceBuffer.uploadData(instances.size() * sizeof(AccelerationStructureInstance), instances.data());
@@ -1743,6 +1749,48 @@ namespace vk
 
 		m_geometryVector.push_back(triangleGeometry);
 		m_buildRangeInfoVector.push_back(offset);
+	}
+
+	void AccelerationStructure::addGeometry(float aabbMin[3], float aabbMax[3]) {
+		vk::Buffer* aabbBuffer = new vk::Buffer(
+			sizeof(float)*6,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+			VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT
+		);
+		aabbBuffer->init(); aabbBuffer->allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		{
+			auto staging = vk::Buffer(sizeof(float) * 6, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+			staging.init(); staging.allocate(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			void* rawData; staging.map(&rawData);
+			float* data = (float*)rawData;
+			memcpy(data, aabbMin, sizeof(float)*3);
+			memcpy(&data[3], aabbMax, sizeof(float) * 3);
+			staging.unmap();
+			aabbBuffer->uploadData(&staging);
+			staging.destroy();
+		}
+		
+		auto bufferAddress = vkUtils::getBufferDeviceAddress(device, *aabbBuffer);
+
+		VkAccelerationStructureGeometryAabbsDataKHR aabbData{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR };
+		aabbData.data.deviceAddress = bufferAddress;
+		aabbData.stride             = sizeof(float) * 6;
+
+		VkAccelerationStructureGeometryKHR aabbGeometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
+		aabbGeometry.geometryType   = VK_GEOMETRY_TYPE_AABBS_KHR;
+		aabbGeometry.geometry.aabbs = aabbData;
+
+		VkAccelerationStructureBuildRangeInfoKHR offset;
+		offset.firstVertex = 0;
+		offset.primitiveCount = 1;
+		offset.primitiveOffset = 0;
+		offset.transformOffset = 0;
+
+		m_geometryVector.push_back(aabbGeometry);
+		m_buildRangeInfoVector.push_back(offset);
+		m_additionalBuffers.push_back(aabbBuffer);
 	}
 
 	VkDeviceAddress AccelerationStructure::getDeviceAddress() {
@@ -1836,18 +1884,17 @@ namespace vk
 		memcpy(pData, getHandle(handleIdx++), handleSize);
 		// Miss
 		pData = pSBTBuffer + m_rgenRegion.size;
-		for (uint32_t c = 0; c < missCount; c++)
-		{
+		for (uint32_t c = 0; c < missCount; c++) {
 			memcpy(pData, getHandle(handleIdx++), handleSize);
 			pData += m_missRegion.stride;
 		}
 		// Hit
 		pData = pSBTBuffer + m_rgenRegion.size + m_missRegion.size;
-		for (uint32_t c = 0; c < hitCount; c++)
-		{
+		for (uint32_t c = 0; c < hitCount; c++){
 			memcpy(pData, getHandle(handleIdx++), handleSize);
 			pData += m_hitRegion.stride;
 		}
+		m_rtSBTBuffer.unmap();
 	}
 
 	void RtPipeline::destroy() {
