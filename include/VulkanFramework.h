@@ -6,6 +6,8 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include "GLFW/glfw3.h"
+#include <unordered_map>
+#include <vector>
 
 //define extension functions
 extern PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR_;
@@ -36,10 +38,58 @@ extern PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR_;
 #define VK_MIN_AMOUNT_OF_SWAPCHAIN_IMAGES 3
 #define VK_USED_SCREENCOLOR_FORMAT VK_FORMAT_B8G8R8A8_UNORM //TODO civ
 
-//TODO add destroy/free functions instead of using the destructor
-
 namespace vk
 {
+	class Registery; // forwarded decleration
+
+	class Registerable {
+	public:
+		Registerable() = default;
+		virtual ~Registerable();
+
+		virtual void init();
+
+		virtual void update();
+		
+		virtual void destroy();
+	private:
+
+
+		Registery* m_registery = nullptr;
+
+		friend class Registery;
+	};
+
+	enum RegisteryFunction {
+		eUPDATE = 0x0,
+		eINIT = 0x1,
+		eDESTROY = 0x2
+	};
+
+	// args: ( obj, dependency, functionType )
+	typedef void(*RegisteryCallback)(Registerable*, Registerable*, RegisteryFunction);
+
+	class Registery {
+	public:
+		Registery();
+		~Registery();
+
+		/*
+		Connect an registerable object with a dependency
+		
+		WARNING:
+		Can't be used twice with the same pointers
+		An object can be registered with only one registery
+		*/
+		void connect(Registerable* obj, Registerable* dependency, RegisteryCallback callback);
+
+	private:
+		std::unordered_map<Registerable*, std::vector<std::pair<Registerable*, RegisteryCallback>>> m_objConnectionMap; // callback is specific to the connection
+		std::unordered_map<Registerable*, std::vector<Registerable*>> m_dependencyObjMap;
+
+		friend class Registerable;
+	};
+
 	class CommandBuffer {
 	public:
 		CommandBuffer();
@@ -82,7 +132,7 @@ namespace vk
 		std::vector<VkSemaphore> m_signalSemaphores;
 	};
 
-	class Buffer {
+	class Buffer : public Registerable{
 	public:
 		Buffer();
 		Buffer(VkDeviceSize size, VkBufferUsageFlags usage);
@@ -96,6 +146,8 @@ namespace vk
 		void init();
 
 		void destroy();
+
+		void update();
 
 		void allocate(VkMemoryPropertyFlags memoryPropertyFlags);
 
@@ -141,7 +193,7 @@ namespace vk
 		VkMemoryPropertyFlags m_memoryPropertyFlags;
 	};
 
-	class Image {
+	class Image : public Registerable {
 	public:
 		Image() {}
 
@@ -338,20 +390,33 @@ namespace vk
 		VkFormat m_imageFormat = VK_USED_SCREENCOLOR_FORMAT;
 	};
 
-	struct Descriptor {//TODO descriptor count
+	struct DescriptorImageInfo {
+		Image* pImage;
+		Sampler* pSampler;
+		VkImageLayout imageLayout;
+	};
+
+	struct DescriptorBufferInfo {
+		Buffer* pBuffer;
+		uint32_t offset;
+		uint32_t range;
+	};
+
+	struct Descriptor {
 		const void*                   pNext;
 		VkDescriptorType              type;
 		uint32_t                      count = 1;
 		VkShaderStageFlags            stages;
 		uint32_t                      binding;
-		const VkDescriptorImageInfo*  pImageInfo;
-		const VkDescriptorBufferInfo* pBufferInfo;
-		const VkBufferView*           pTexelBufferView;
+
+		std::vector<DescriptorImageInfo>    imageInfos = {};
+		std::vector<DescriptorBufferInfo>   bufferInfos = {};
+		std::vector<VkBufferView>           texelBufferViews = {};
 	};
 
 	class DescriptorPool; //forward decleration
 
-	class DescriptorSet {
+	class DescriptorSet : public Registerable {
 	public:
 		DescriptorSet();
 		~DescriptorSet();
@@ -363,8 +428,6 @@ namespace vk
 		void allocate();
 
 		void update();
-
-		void updateDescriptor(uint32_t index);
 
 		void destroy();
 
@@ -675,7 +738,18 @@ namespace vk
 
 	struct initInfo {
 		const char* applicationName;
+		std::vector<const char*> requestedInstanceLayers = {};
+		//std::vector<const char*> requestedInstanceExtensions = {}; // TODO implement instanceExtensions
 		uint32_t    deviceIndex = 0;
+		bool checkDeviceSupport = true;
+		std::vector<const char*> requestedDeviceLayers = {};
+		std::vector<const char*> requestedDeviceExtensions = {};
+		VkPhysicalDeviceFeatures2 features = {};
+#ifdef _DEBUG
+		bool printDebugInfo = true;
+#else
+		bool printDebugInfo = false;
+#endif
 	};
 
 	class RtPipeline {
@@ -777,6 +851,9 @@ namespace vk
 		void addGeometry(float aabbMax[3], float aabbMin[3]);
 
 		VkDeviceAddress getDeviceAddress();
+
+		VkAccelerationStructureKHR getVkAccelerationStructureKHR() { return m_accelerationStructure; }
+		VkAccelerationStructureKHR* getVkAccelerationStructureKHRptr() { return &m_accelerationStructure; }
 
 	private:
 		Buffer m_buffer;

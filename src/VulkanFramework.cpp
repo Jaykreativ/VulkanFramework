@@ -54,7 +54,7 @@ namespace vk
 		VK_ASSERT(result);
 	}
 
-	void createLogicalDevice(const VkPhysicalDevice &physicalDevice, VkDevice &device, std::vector<const char *> &enabledLayers, std::vector<const char *> &enabledExtensions, VkPhysicalDeviceFeatures usedFeatures)
+	void createLogicalDevice(const VkPhysicalDevice &physicalDevice, VkDevice &device, std::vector<const char *> &enabledLayers, std::vector<const char *> &enabledExtensions, VkPhysicalDeviceFeatures2 usedFeatures)
 	{
 		VkDeviceQueueCreateInfo deviceQueueCreateInfo;
 		deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -77,25 +77,9 @@ namespace vk
 			prios[i] = 1.0f;
 		deviceQueueCreateInfo.pQueuePriorities = prios.data();
 
-		VkPhysicalDeviceVulkan12Features vulkan12Features{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
-		vulkan12Features.runtimeDescriptorArray = true;
-		vulkan12Features.bufferDeviceAddress = true;
-
-		VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
-		accelerationStructureFeatures.pNext = &vulkan12Features;
-		accelerationStructureFeatures.accelerationStructure = true;
-
-		VkPhysicalDeviceRayTracingPipelineFeaturesKHR raytracingPipelineFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
-		raytracingPipelineFeatures.pNext = &accelerationStructureFeatures;
-		raytracingPipelineFeatures.rayTracingPipeline = true;
-
-		VkPhysicalDeviceFeatures2 features2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
-		features2.pNext = &raytracingPipelineFeatures;
-		features2.features.shaderInt64 = true;
-
 		VkDeviceCreateInfo deviceCreateInfo;
 		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		deviceCreateInfo.pNext = &features2;
+		deviceCreateInfo.pNext = &usedFeatures;
 		deviceCreateInfo.flags = 0;
 		deviceCreateInfo.queueCreateInfoCount = 1;
 		deviceCreateInfo.pQueueCreateInfos = &deviceQueueCreateInfo;
@@ -103,7 +87,7 @@ namespace vk
 		deviceCreateInfo.ppEnabledLayerNames = enabledLayers.data();
 		deviceCreateInfo.enabledExtensionCount = enabledExtensions.size();
 		deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
-		deviceCreateInfo.pEnabledFeatures = nullptr;// TODO add way to add features as user
+		deviceCreateInfo.pEnabledFeatures = nullptr;
 
 		VkResult result = vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device);
 		VK_ASSERT(result);
@@ -133,6 +117,87 @@ namespace vk
 	void waitForFence(VkFence fence) {
 		vkWaitForFences(vk::device, 1, &fence, true, std::numeric_limits<uint64_t>::max());
 		resetFence(fence);
+	}
+
+	/* Registery */
+
+	Registerable::~Registerable() {
+		if (!m_registery)
+			return;
+
+		if (m_registery->m_objConnectionMap.count(this)) {
+			auto& depPairs = m_registery->m_objConnectionMap.at(this);
+			for (uint32_t i = 0; i < depPairs.size(); i++) {
+				auto& objs = m_registery->m_dependencyObjMap.at(depPairs[i].first);
+				for (uint32_t j = 0; j < objs.size(); j++) {
+					if (objs[j] == this) {
+						objs.erase(objs.begin()+j);
+						if (objs.size() <= 0) {
+							m_registery->m_dependencyObjMap.erase(depPairs[i].first);
+						}
+					}
+				}
+			}
+			m_registery->m_objConnectionMap.erase(this);
+		}
+		if (m_registery->m_dependencyObjMap.count(this)) {
+			auto& objs = m_registery->m_dependencyObjMap.at(this);
+			for (auto obj : objs) {
+				auto& depPairs = m_registery->m_objConnectionMap.at(obj);
+				for (uint32_t i = 0; i < depPairs.size(); i++) {
+					if (depPairs[i].first == this) {
+						depPairs.erase(depPairs.begin() + i);
+						if (depPairs.size() <= 0) {
+							m_registery->m_objConnectionMap.erase(obj);
+						}
+					}
+				}
+			}
+			m_registery->m_dependencyObjMap.erase(this);
+		}
+	}
+
+	void Registerable::init() {
+		if (!m_registery)
+			return;
+		if (m_registery->m_objConnectionMap.count(this)) {
+			auto& depPairs = m_registery->m_objConnectionMap.at(this);
+			for (uint32_t i = 0; i < depPairs.size(); i++) {
+				depPairs[i].second(this, depPairs[i].first, eINIT);
+			}
+		}
+	}
+
+	void Registerable::update() {
+		if (!m_registery)
+			return;
+		if (m_registery->m_objConnectionMap.count(this)) {
+			auto& depPairs = m_registery->m_objConnectionMap.at(this);
+			for (uint32_t i = 0; i < depPairs.size(); i++) {
+				depPairs[i].second(this, depPairs[i].first, eUPDATE);
+			}
+		}
+	}
+
+	void Registerable::destroy() {
+		if (!m_registery)
+			return;
+		if (m_registery->m_objConnectionMap.count(this)) {
+			auto& depPairs = m_registery->m_objConnectionMap.at(this);
+			for (uint32_t i = 0; i < depPairs.size(); i++) {
+				depPairs[i].second(this, depPairs[i].first, eDESTROY);
+			}
+		}
+	}
+
+	Registery::Registery() {}
+
+	Registery::~Registery() {}
+
+	void Registery::connect(Registerable* obj, Registerable* dependency, RegisteryCallback callback) {
+		obj->m_registery = this;
+		m_objConnectionMap[obj].push_back(std::pair<Registerable*, RegisteryCallback>(dependency, callback));
+		m_dependencyObjMap[dependency].push_back(obj);
 	}
 
 	/*CommandBuffer*/
@@ -290,6 +355,8 @@ namespace vk
 
 		VkResult result = vkCreateBuffer(vk::device, &createInfo, nullptr, &m_buffer);
 		VK_ASSERT(result);
+
+		Registerable::init();
 	}
 
 	void Buffer::free() {
@@ -301,6 +368,8 @@ namespace vk
 	}
 
 	void Buffer::destroy() {
+		Registerable::destroy();
+
 		if (m_isAlloc)
 		{
 			m_isAlloc = false;
@@ -312,6 +381,51 @@ namespace vk
 			m_isInit = false;
 			vkDestroyBuffer(vk::device, m_buffer, nullptr);
 		}
+	}
+
+	void Buffer::update() {
+		if (m_isAlloc)
+			vkFreeMemory(vk::device, m_deviceMemory, nullptr);
+		if (m_isInit)
+			vkDestroyBuffer(vk::device, m_buffer, nullptr);
+
+		if (!m_isInit)
+			return;
+		VkBufferCreateInfo createInfo;
+		createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		createInfo.pNext = nullptr;
+		createInfo.flags = 0;
+		createInfo.size = m_size;
+		createInfo.usage = m_usage;
+		createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		createInfo.queueFamilyIndexCount = 0;
+		createInfo.pQueueFamilyIndices = nullptr;
+
+		VkResult result = vkCreateBuffer(vk::device, &createInfo, nullptr, &m_buffer);
+		VK_ASSERT(result);
+
+		if (!m_isAlloc)
+			return;
+		VkMemoryRequirements memoryRequirements;
+		vkGetBufferMemoryRequirements(vk::device, m_buffer, &memoryRequirements);
+
+		VkMemoryAllocateInfo allocateInfo;
+		allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocateInfo.pNext = nullptr;
+		allocateInfo.allocationSize = memoryRequirements.size;
+		allocateInfo.memoryTypeIndex = vkUtils::findMemoryTypeIndex(vk::physicalDevice, memoryRequirements.memoryTypeBits, m_memoryPropertyFlags);
+
+		VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO };
+		if (VK_IS_FLAG_ENABLED(m_usage, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)) {
+			memoryAllocateFlagsInfo.flags |= VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+			allocateInfo.pNext = &memoryAllocateFlagsInfo;
+		}
+		result = vkAllocateMemory(vk::device, &allocateInfo, nullptr, &m_deviceMemory);
+		VK_ASSERT(result);
+
+		vkBindBufferMemory(vk::device, m_buffer, m_deviceMemory, 0);
+
+		Registerable::update();
 	}
 
 	void Buffer::allocate(VkMemoryPropertyFlags memoryPropertyFlags)
@@ -447,6 +561,8 @@ namespace vk
 		createInfo.initialLayout = m_currentLayout;
 
 		vkCreateImage(vk::device, &createInfo, nullptr, &m_image);
+
+		Registerable::init();
 	}
 
 	void Image::allocate(VkMemoryPropertyFlags memoryProperties)
@@ -497,6 +613,8 @@ namespace vk
 	}
 
 	void Image::destroy(){
+		Registerable::destroy();
+
 		if (m_isViewInit)
 		{
 			m_isViewInit = false;
@@ -550,6 +668,8 @@ namespace vk
 		if (oldLayout != VK_IMAGE_LAYOUT_PREINITIALIZED && oldLayout != VK_IMAGE_LAYOUT_UNDEFINED) {
 			changeLayout(oldLayout, oldAccessMask);
 		}
+
+		Registerable::update();
 	}
 
 	void Image::resize(uint32_t width, uint32_t height, uint32_t depth) {
@@ -776,7 +896,12 @@ namespace vk
 
 	/*DescriptorSet*/
 	DescriptorSet::DescriptorSet() {}
-	DescriptorSet::~DescriptorSet() {}
+	DescriptorSet::~DescriptorSet() {
+		for (auto descriptor : m_descriptors) {
+			if (descriptor.pNext)
+				delete descriptor.pNext;
+		}
+	}
 
 	void DescriptorSet::init() {
 		VkDescriptorSetLayoutCreateInfo createInfo;
@@ -800,6 +925,8 @@ namespace vk
 		vkCreateDescriptorSetLayout(device, &createInfo, nullptr, &m_descriptorSetLayout);
 
 		delete[] pBindings;
+
+		Registerable::init();
 	}
 
 	void DescriptorSet::allocate() {
@@ -818,8 +945,8 @@ namespace vk
 		vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &m_descriptorSet);
 	}
 
-	void DescriptorSet::update() {// fix pNext 
-		uint32_t writeCount = m_descriptors.size();
+	void DescriptorSet::update() {
+		const uint32_t writeCount = m_descriptors.size();
 		VkWriteDescriptorSet* pWrites = new VkWriteDescriptorSet[writeCount];
 
 		for (uint32_t i = 0; i < writeCount; i++) {
@@ -832,34 +959,58 @@ namespace vk
 			write.dstArrayElement = 0;
 			write.descriptorCount = descriptor.count;
 			write.descriptorType = descriptor.type;
-			write.pImageInfo = descriptor.pImageInfo;
-			write.pBufferInfo = descriptor.pBufferInfo;
-			write.pTexelBufferView = descriptor.pTexelBufferView;
+
+			VkDescriptorImageInfo* pImageInfo = nullptr; // ImageDescription
+			if (descriptor.imageInfos.size()) {
+				pImageInfo = new VkDescriptorImageInfo[descriptor.count]{};
+				for (uint32_t j = 0; j < descriptor.count; j++) {
+					if (descriptor.imageInfos[j].pSampler) {
+						pImageInfo[j].sampler = *descriptor.imageInfos[j].pSampler;
+					}
+					pImageInfo[j].imageView = descriptor.imageInfos[j].pImage->getVkImageView();
+					pImageInfo[j].imageLayout = descriptor.imageInfos[j].imageLayout;
+				}
+			}
+			write.pImageInfo = pImageInfo;
+
+			VkDescriptorBufferInfo* pBufferInfo = nullptr; // BufferDescription
+			if (descriptor.bufferInfos.size()) {
+				pBufferInfo = new VkDescriptorBufferInfo[descriptor.count]{};
+				for (uint32_t j = 0; j < descriptor.count; j++) {
+					pBufferInfo[j].buffer = *descriptor.bufferInfos[j].pBuffer;
+					pBufferInfo[j].offset = descriptor.bufferInfos[j].offset;
+					pBufferInfo[j].range = descriptor.bufferInfos[j].range;
+				}
+			}
+			write.pBufferInfo = pBufferInfo;
+
+			VkBufferView* pTexelBufferView = nullptr;
+			if (descriptor.texelBufferViews.size()) {
+				pTexelBufferView = descriptor.texelBufferViews.data();
+			}
+			write.pTexelBufferView = pTexelBufferView;
 		}
 
 		vkUpdateDescriptorSets(device, writeCount, pWrites, 0, nullptr);
 
+		for (uint32_t i = 0; i < writeCount; i++) {
+			if (pWrites[i].pBufferInfo)
+				delete pWrites[i].pBufferInfo;
+
+			if (pWrites[i].pImageInfo)
+				delete pWrites[i].pImageInfo;
+
+			if (pWrites[i].pTexelBufferView)
+				delete pWrites[i].pTexelBufferView;
+		}
 		delete[] pWrites;
-	}
 
-	void DescriptorSet::updateDescriptor(uint32_t index) {
-		auto& descriptor = m_descriptors[index];
-		VkWriteDescriptorSet write{};
-		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		write.pNext = descriptor.pNext;
-		write.dstSet = m_descriptorSet;
-		write.dstBinding = descriptor.binding;
-		write.dstArrayElement = 0;
-		write.descriptorCount = 1;
-		write.descriptorType = descriptor.type;
-		write.pImageInfo = descriptor.pImageInfo;
-		write.pBufferInfo = descriptor.pBufferInfo;
-		write.pTexelBufferView = descriptor.pTexelBufferView;
-
-		vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+		Registerable::update();
 	}
 
 	void DescriptorSet::destroy() {
+		Registerable::destroy();
+
 		vkDestroyDescriptorSetLayout(device, m_descriptorSetLayout, nullptr);
 	}
 
@@ -2004,13 +2155,87 @@ namespace vk
 	}
 }
 
+bool isInstanceLayerSupported(const char* instanceLayer, VkLayerProperties* instanceLayerProperties, uint32_t amountOfInstanceLayers) {
+	for (uint32_t i = 0; i < amountOfInstanceLayers; i++) {
+		if (strcmp(instanceLayer, (char*)instanceLayerProperties[i].layerName))
+			return true;
+	}
+	return false;
+}
+
+bool isInstanceLayerSupported(const char* instanceLayer) {
+	uint32_t amountOfInstanceLayers;
+	vkEnumerateInstanceLayerProperties(&amountOfInstanceLayers, nullptr);
+	VkLayerProperties* instanceLayerProperties = new VkLayerProperties[amountOfInstanceLayers];
+	vkEnumerateInstanceLayerProperties(&amountOfInstanceLayers, instanceLayerProperties);
+
+	bool is = isInstanceLayerSupported(instanceLayer, instanceLayerProperties, amountOfInstanceLayers);
+
+	delete[] instanceLayerProperties;
+	return is;
+}
+
+bool isDeviceExtensionSupported(const char* deviceExtension, VkExtensionProperties* deviceExtensionProperties, uint32_t amountOfDeviceExtensions) {
+	for (uint32_t i = 0; i < amountOfDeviceExtensions; i++) {
+		if (strcmp(deviceExtension, (char*)deviceExtensionProperties[i].extensionName))
+			return true;
+	}
+	return false;
+}
+
+bool isDeviceExtensionSupported(const char* deviceExtension, VkPhysicalDevice physicalDevice) {
+	uint32_t amountOfDeviceExtensions;
+	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &amountOfDeviceExtensions, nullptr);
+	VkExtensionProperties* deviceExtensionProperties = new VkExtensionProperties[amountOfDeviceExtensions];
+	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &amountOfDeviceExtensions, deviceExtensionProperties);
+	
+	bool is = isDeviceExtensionSupported(deviceExtension, deviceExtensionProperties, amountOfDeviceExtensions);
+
+	delete[] deviceExtensionProperties;
+	return is;
+}
+
 void initVulkan(vk::initInfo info)
 {
-	std::vector<const char *> enabledInstanceLayers = {
-#if _DEBUG
-		"VK_LAYER_KHRONOS_validation"
-#endif
-	};
+	std::vector<const char *> enabledInstanceLayers = {};
+
+	//check if requested Instance layers are supported
+	uint32_t amountOfInstanceLayers;
+	vkEnumerateInstanceLayerProperties(&amountOfInstanceLayers, nullptr);
+	VkLayerProperties* instanceLayerProperties = new VkLayerProperties[amountOfInstanceLayers];
+	vkEnumerateInstanceLayerProperties(&amountOfInstanceLayers, instanceLayerProperties);
+
+	if (info.printDebugInfo) {
+		std::cout << 
+			"\nInstance:\n" <<
+			"Requested InstanceLayers:\n";
+	}
+
+	bool allSupported = true;
+	for (auto requested : info.requestedInstanceLayers) {
+		bool isRequestedSupported = isInstanceLayerSupported(requested, instanceLayerProperties, amountOfInstanceLayers);
+		if (info.printDebugInfo) {
+			std::cout << requested << ": ";
+			if (isRequestedSupported)
+				std::cout << "Supported";
+			else
+				std::cout << "Not Supported";
+			std::cout << "\n";
+		}
+		if (isRequestedSupported)
+			enabledInstanceLayers.push_back(requested);
+	}
+
+	delete[] instanceLayerProperties;
+
+	//throw exception if something is not supported
+	if (!allSupported) {
+		std::cerr << "initVulkan() | One or multiple InstanceLayers not supported\n";
+		throw std::runtime_error("One or multiple InstanceLayers not supported");
+	}
+	allSupported = true;
+
+	// requesting instanceExtensions not implemented yet
 	std::vector<const char *> enabledInstanceExtensions = {};
 
 	uint32_t amountOfRequiredGLFWExtensions; // Add Required GLFW Extensions to Instance Extensions
@@ -2019,18 +2244,80 @@ void initVulkan(vk::initInfo info)
 		enabledInstanceExtensions.push_back(glfwExtensions[i]);
 
 	vk::createInstance(vk::instance, enabledInstanceLayers, enabledInstanceExtensions, info.applicationName); // Create Instance
-	vk::physicalDevice = vkUtils::getAllPhysicalDevices(vk::instance)[info.deviceIndex];
+	
+	// choose physical device | prefer requested device
+	auto allPhysicalDevices = vkUtils::getAllPhysicalDevices(vk::instance);
+	std::vector<const char*> enabledDeviceLayers = {};
+	std::vector<const char*> enabledDeviceExtensions = {};
+	if (info.checkDeviceSupport) {
+		bool foundDevice = false;
+		for (uint32_t i = 0; i != allPhysicalDevices.size(); i++) {
+			uint32_t index = (i+info.deviceIndex) % allPhysicalDevices.size();
+			bool isDeviceSupported = true;
 
-	VkPhysicalDeviceFeatures usedDeviceFeatures{};
-	usedDeviceFeatures.shaderInt64 = true;
-	std::vector<const char *> enabledDeviceLayers = {};
-	std::vector<const char *> enabledDeviceExtensions = {
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
-		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME
-	};
-	vk::createLogicalDevice(vk::physicalDevice, vk::device, enabledDeviceLayers, enabledDeviceExtensions, usedDeviceFeatures); // Create Logical Device
+			//check for support of device
+			uint32_t amountOfDeviceExtensions;
+			vkEnumerateDeviceExtensionProperties(allPhysicalDevices[index], nullptr, &amountOfDeviceExtensions, nullptr);
+			VkExtensionProperties* deviceExtensionProperties = new VkExtensionProperties[amountOfDeviceExtensions];
+			vkEnumerateDeviceExtensionProperties(allPhysicalDevices[index], nullptr, &amountOfDeviceExtensions, deviceExtensionProperties);
+
+			if (info.printDebugInfo) {
+				VkPhysicalDeviceProperties physicalDeviceProperties;
+				vkGetPhysicalDeviceProperties(allPhysicalDevices[index], &physicalDeviceProperties);
+				uint32_t apiVer = physicalDeviceProperties.apiVersion;
+				std::cout << "\nDevice: " << index << "\n" <<
+				"Name: " << physicalDeviceProperties.deviceName << "\n" <<
+				"API Version: " << VK_VERSION_MAJOR(apiVer) << "." << VK_VERSION_MINOR(apiVer) << "." << VK_VERSION_PATCH(apiVer) << "\n" <<
+				"Requested DeviceExtensions:\n";
+			}
+			for (auto& requested : info.requestedDeviceExtensions) {
+				bool isRequestedSupported = isDeviceExtensionSupported(requested, deviceExtensionProperties, amountOfDeviceExtensions);
+				isDeviceSupported &= isRequestedSupported;
+
+				if (info.printDebugInfo) {
+					std::cout << requested << ": ";
+					if (isRequestedSupported)
+						std::cout << "Supported";
+					else
+						std::cout << "Not Supported";
+					std::cout << "\n";
+				}
+			}
+
+			delete[] deviceExtensionProperties;
+
+			if (isDeviceSupported) {
+				vk::physicalDevice = allPhysicalDevices[index];
+				foundDevice = true;
+				break;
+			}
+		}
+		if (!foundDevice) {		
+			std::cerr << "initVulkan() | No supported device found\n";
+			throw std::runtime_error("No supported device found");
+		}
+	}
+	else {
+		vk::physicalDevice = allPhysicalDevices[info.deviceIndex];
+	}
+
+	if (info.printDebugInfo) {
+		VkPhysicalDeviceProperties physicalDeviceProperties;
+		vkGetPhysicalDeviceProperties(vk::physicalDevice, &physicalDeviceProperties);
+		uint32_t apiVer = physicalDeviceProperties.apiVersion;
+		std::cout << 
+			"----------------------------------------\n" <<
+			"Selected Device:\n" <<
+			"Name: " << physicalDeviceProperties.deviceName << "\n" <<
+			"API Version: " << VK_VERSION_MAJOR(apiVer) << "." << VK_VERSION_MINOR(apiVer) << "." << VK_VERSION_PATCH(apiVer) << "\n" <<
+			"----------------------------------------\n";
+	}
+
+	enabledDeviceLayers = info.requestedDeviceLayers;
+	enabledDeviceExtensions = info.requestedDeviceExtensions;
+
+	//TODO check if features are supported
+	vk::createLogicalDevice(vk::physicalDevice, vk::device, enabledDeviceLayers, enabledDeviceExtensions, info.features); // Create Logical Device
 
 	// load extension functions
 	vkCreateRayTracingPipelinesKHR_ = (PFN_vkCreateRayTracingPipelinesKHR)vkGetDeviceProcAddr(vk::device, "vkCreateRayTracingPipelinesKHR");
@@ -2051,8 +2338,6 @@ void initVulkan(vk::initInfo info)
 	for (size_t i = 0; i < vk::queues.size(); i++)
 		vkGetDeviceQueue(vk::device, vk::queueFamily, i, &vk::queues[i]); // Get Queues from Device
 	vkUtils::queueHandler::init(vk::queues);
-
-	// TODO Make compile automatic in shader class
 
 	vk::createCommandPool(vk::device, vk::queueFamily, vk::commandPool);
 }
