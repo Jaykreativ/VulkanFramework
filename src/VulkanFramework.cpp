@@ -1093,7 +1093,8 @@ namespace vk
 		descriptorSetAllocateInfo.descriptorSetCount = 1;
 		descriptorSetAllocateInfo.pSetLayouts = &m_descriptorSetLayout;
 
-		vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &m_descriptorSet);
+		VkResult result = vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &m_descriptorSet);
+		VK_ASSERT(result)
 	}
 
 	void DescriptorSet::update() {
@@ -1205,7 +1206,8 @@ namespace vk
 		createInfo.poolSizeCount = m_poolSizes.size();
 		createInfo.pPoolSizes = m_poolSizes.data();
 
-		vkCreateDescriptorPool(device, &createInfo, nullptr, &m_descriptorPool);
+		VkResult result = vkCreateDescriptorPool(device, &createInfo, nullptr, &m_descriptorPool);
+		VK_ASSERT(result)
 	}
 
 	void DescriptorPool::update() {
@@ -1223,13 +1225,13 @@ namespace vk
 			bool typeExists = false;
 			for (VkDescriptorPoolSize& poolSize : m_poolSizes) {
 				if (descriptor.type == poolSize.type) {
-					poolSize.descriptorCount++;
+					poolSize.descriptorCount += descriptor.count;
 					typeExists = true;
 					break;
 				}
 			}
 			if (!typeExists) {
-				m_poolSizes.push_back({descriptor.type, 1});
+				m_poolSizes.push_back({descriptor.type, descriptor.count});
 			}
 		}
 		descriptorSet.m_pDescriptorPool = this;
