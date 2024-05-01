@@ -223,5 +223,47 @@ namespace vkUtils {
 		info.buffer = buffer;
 		return vkGetBufferDeviceAddress(device, &info);
 	}
+
+	/* Extension and layer checks */
+
+	bool isInstanceLayerSupported(const char* instanceLayer, VkLayerProperties* instanceLayerProperties, uint32_t amountOfInstanceLayers) {
+		for (uint32_t i = 0; i < amountOfInstanceLayers; i++) {
+			if (strcmp(instanceLayer, (char*)instanceLayerProperties[i].layerName))
+				return true;
+		}
+		return false;
+	}
+
+	bool isInstanceLayerSupported(const char* instanceLayer) {
+		uint32_t amountOfInstanceLayers;
+		vkEnumerateInstanceLayerProperties(&amountOfInstanceLayers, nullptr);
+		VkLayerProperties* instanceLayerProperties = new VkLayerProperties[amountOfInstanceLayers];
+		vkEnumerateInstanceLayerProperties(&amountOfInstanceLayers, instanceLayerProperties);
+
+		bool is = isInstanceLayerSupported(instanceLayer, instanceLayerProperties, amountOfInstanceLayers);
+
+		delete[] instanceLayerProperties;
+		return is;
+	}
+
+	bool isDeviceExtensionSupported(const char* deviceExtension, VkExtensionProperties* deviceExtensionProperties, uint32_t amountOfDeviceExtensions) {
+		for (uint32_t i = 0; i < amountOfDeviceExtensions; i++) {
+			if (strcmp(deviceExtension, (char*)deviceExtensionProperties[i].extensionName))
+				return true;
+		}
+		return false;
+	}
+
+	bool isDeviceExtensionSupported(const char* deviceExtension, VkPhysicalDevice physicalDevice) {
+		uint32_t amountOfDeviceExtensions;
+		vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &amountOfDeviceExtensions, nullptr);
+		VkExtensionProperties* deviceExtensionProperties = new VkExtensionProperties[amountOfDeviceExtensions];
+		vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &amountOfDeviceExtensions, deviceExtensionProperties);
+
+		bool is = isDeviceExtensionSupported(deviceExtension, deviceExtensionProperties, amountOfDeviceExtensions);
+
+		delete[] deviceExtensionProperties;
+		return is;
+	}
 };
 

@@ -54,4 +54,12 @@ namespace vkUtils {
 	void uploadBuffer(VkDevice& device, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue, VkDeviceSize bufferSize, void* data, VkBuffer& buffer);
 
 	VkDeviceAddress getBufferDeviceAddress(VkDevice device, VkBuffer buffer);
+
+	bool isInstanceLayerSupported(const char* instanceLayer, VkLayerProperties* instanceLayerProperties, uint32_t amountOfInstanceLayers);
+
+	bool isInstanceLayerSupported(const char* instanceLayer);
+
+	bool isDeviceExtensionSupported(const char* deviceExtension, VkExtensionProperties* deviceExtensionProperties, uint32_t amountOfDeviceExtensions);
+
+	bool isDeviceExtensionSupported(const char* deviceExtension, VkPhysicalDevice physicalDevice);
 };

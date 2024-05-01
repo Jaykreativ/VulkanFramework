@@ -200,7 +200,158 @@ namespace vk
 		m_dependencyObjMap[dependency].push_back(obj);
 	}
 
-	/*CommandBuffer*/
+	/* Instance */
+
+	void initInstance(vk::initInfo& info) {
+		std::vector<const char*> enabledInstanceLayers = {};
+
+		//check if requested Instance layers are supported
+		uint32_t amountOfInstanceLayers;
+		vkEnumerateInstanceLayerProperties(&amountOfInstanceLayers, nullptr);
+		VkLayerProperties* instanceLayerProperties = new VkLayerProperties[amountOfInstanceLayers];
+		vkEnumerateInstanceLayerProperties(&amountOfInstanceLayers, instanceLayerProperties);
+
+		if (info.printDebugInfo) {
+			std::cout <<
+				"\nInstance:\n" <<
+				"Requested InstanceLayers:\n";
+		}
+
+		bool allSupported = true;
+		for (auto requested : info.requestedInstanceLayers) {
+			bool isRequestedSupported = vkUtils::isInstanceLayerSupported(requested, instanceLayerProperties, amountOfInstanceLayers);
+			if (info.printDebugInfo) {
+				std::cout << requested << ": ";
+				if (isRequestedSupported)
+					std::cout << "Supported";
+				else
+					std::cout << "Not Supported";
+				std::cout << "\n";
+			}
+			if (isRequestedSupported)
+				enabledInstanceLayers.push_back(requested);
+		}
+
+		delete[] instanceLayerProperties;
+
+		//throw exception if something is not supported
+		if (!allSupported) {
+			std::cerr << "initVulkan() | One or multiple InstanceLayers not supported\n";
+			throw std::runtime_error("One or multiple InstanceLayers not supported");
+		}
+		allSupported = true;
+
+		// requesting instanceExtensions not implemented yet
+		std::vector<const char*> enabledInstanceExtensions = {};
+
+		uint32_t amountOfRequiredGLFWExtensions; // Add Required GLFW Extensions to Instance Extensions
+		auto glfwExtensions = glfwGetRequiredInstanceExtensions(&amountOfRequiredGLFWExtensions);
+		for (size_t i = 0; i < amountOfRequiredGLFWExtensions; i++)
+			enabledInstanceExtensions.push_back(glfwExtensions[i]);
+
+		vk::createInstance(vk::instance, enabledInstanceLayers, enabledInstanceExtensions, info.applicationName); // Create Instance
+	}
+
+	/* PhysicalDevice */
+
+	PhysicalDevice::PhysicalDevice() {}
+	PhysicalDevice::PhysicalDevice(VkPhysicalDevice physicalDevice)
+		: m_physicalDevice(physicalDevice)
+	{}
+	PhysicalDevice::PhysicalDevice(uint32_t deviceIndex){
+		m_physicalDevice = vkUtils::getAllPhysicalDevices(instance)[deviceIndex];
+	}
+
+	PhysicalDevice::~PhysicalDevice(){}
+
+	bool PhysicalDevice::isExtensionSupported(const char* deviceExtension) {
+		uint32_t amountOfDeviceExtensions;
+		vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &amountOfDeviceExtensions, nullptr);
+		VkExtensionProperties* deviceExtensionProperties = new VkExtensionProperties[amountOfDeviceExtensions];
+		vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &amountOfDeviceExtensions, deviceExtensionProperties);
+
+		bool is = vkUtils::isDeviceExtensionSupported(deviceExtension, deviceExtensionProperties, amountOfDeviceExtensions);
+
+		delete[] deviceExtensionProperties;
+		return is;
+	}
+
+	bool PhysicalDevice::areExtensionsSupported(const char** extensions, uint32_t extensionCount) {
+		uint32_t amountOfDeviceExtensions;
+		vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &amountOfDeviceExtensions, nullptr);
+		VkExtensionProperties* deviceExtensionProperties = new VkExtensionProperties[amountOfDeviceExtensions];
+		vkEnumerateDeviceExtensionProperties(m_physicalDevice, nullptr, &amountOfDeviceExtensions, deviceExtensionProperties);
+
+		for (uint32_t i = 0; i < extensionCount; i++) {
+			if (!vkUtils::isDeviceExtensionSupported(extensions[i], deviceExtensionProperties, amountOfDeviceExtensions)) {
+				delete[] deviceExtensionProperties;
+				return false;
+			}
+		}
+
+		delete[] deviceExtensionProperties;
+		return true;
+	}
+
+	VkPhysicalDeviceProperties PhysicalDevice::getProperties() {
+		VkPhysicalDeviceProperties properties{};
+		vkGetPhysicalDeviceProperties(m_physicalDevice, &properties);
+		return properties;
+	}
+
+	VkPhysicalDeviceFeatures2 PhysicalDevice::getSupportedFeatures2() {
+		VkPhysicalDeviceFeatures2 features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+		vkGetPhysicalDeviceFeatures2(m_physicalDevice, &features);
+		return features;
+	}
+
+	VkPhysicalDeviceVulkan12Features PhysicalDevice::getSupportedVulkan12Features() {
+		VkPhysicalDeviceVulkan12Features features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
+		VkPhysicalDeviceFeatures2 helper{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+		helper.pNext = &features;
+		vkGetPhysicalDeviceFeatures2(m_physicalDevice, &helper);
+		return features;
+	}
+
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR PhysicalDevice::getSupportedAccelerationStructureFeatures() {
+		VkPhysicalDeviceAccelerationStructureFeaturesKHR features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
+		VkPhysicalDeviceFeatures2 helper{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+		helper.pNext = &features;
+		vkGetPhysicalDeviceFeatures2(m_physicalDevice, &helper);
+		return features;
+	}
+
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR PhysicalDevice::getSupportedRayTraycingPipelineFeatures() {
+		VkPhysicalDeviceRayTracingPipelineFeaturesKHR features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
+		VkPhysicalDeviceFeatures2 helper{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+		helper.pNext = &features;
+		vkGetPhysicalDeviceFeatures2(m_physicalDevice, &helper);
+		return features;
+	}
+
+	std::string PhysicalDevice::getName() {
+		auto& properties = getProperties();
+		return properties.deviceName;
+	}
+
+	uint32_t PhysicalDevice::getPhysicalDeviceCount() {
+		uint32_t physicalDeviceCount;
+		vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, nullptr);
+		return physicalDeviceCount;
+	}
+
+	std::vector<PhysicalDevice> PhysicalDevice::getAllPhysicalDevices() {
+		auto vkPhysicalDevices = vkUtils::getAllPhysicalDevices(instance);
+		std::vector<PhysicalDevice> physicalDevices(vkPhysicalDevices.size());
+		uint32_t i = 0;
+		for (VkPhysicalDevice vkPhysicalDevice : vkPhysicalDevices) {
+			physicalDevices[i] = PhysicalDevice(vkPhysicalDevice);
+			i++;
+		}
+		return physicalDevices;
+	}
+
+	/* CommandBuffer */
 	CommandBuffer::CommandBuffer(){}
 
 	CommandBuffer::CommandBuffer(bool autoAllocate)
@@ -313,7 +464,7 @@ namespace vk
 		m_waitDstStageMasks.erase(m_waitDstStageMasks.begin() + index);
 	}
 
-	/*Buffer*/
+	/* Buffer */
 	Buffer::Buffer() {}
 	Buffer::Buffer(VkDeviceSize size, VkBufferUsageFlags usage)
 		: m_size(size), m_usage(usage)
@@ -534,7 +685,7 @@ namespace vk
 		commandBuffer.free();
 	}
 
-	/*Image*/
+	/* Image */
 	Image::~Image(){}
 
 	void Image::init()
@@ -735,7 +886,7 @@ namespace vk
 		commandBuffer.free();
 	}
 
-	/*Sampler*/
+	/* Sampler */
 	Sampler::Sampler() {}
 	Sampler::~Sampler() {}
 
@@ -748,7 +899,7 @@ namespace vk
 		vkDestroySampler(device, m_sampler, nullptr);
 	}
 
-	/*Surface*/
+	/* Surface */
 	Surface::~Surface()
 	{
 		if (!m_isInit)
@@ -774,7 +925,7 @@ namespace vk
 			throw std::runtime_error("Surface not Supported!");
 	}
 
-	/*Swapchain*/
+	/* Swapchain */
 	Swapchain::Swapchain(){}
 
 	Swapchain::~Swapchain()
@@ -894,7 +1045,7 @@ namespace vk
 		return m_imageViews[index];
 	}
 
-	/*DescriptorSet*/
+	/* DescriptorSet */
 	DescriptorSet::DescriptorSet() {}
 	DescriptorSet::~DescriptorSet() {
 		for (auto descriptor : m_descriptors) {
@@ -1042,7 +1193,7 @@ namespace vk
 		return m_descriptors[index];
 	}
 
-	/*DescriptorPool*/
+	/* DescriptorPool */
 	DescriptorPool::DescriptorPool(){}
 	DescriptorPool::~DescriptorPool(){}
 
@@ -1322,7 +1473,7 @@ namespace vk
 	//	m_writeDescriptorSetIndices.push_back(setIndex);
 	//}
 
-	/*Shader*/
+	/* Shader */
 	Shader::Shader()
 	{
 		m_shaderStage.pName = "main";
@@ -1369,7 +1520,7 @@ namespace vk
 		}
 	}
 
-	/*RenderPass*/
+	/* RenderPass */
 	RenderPass::RenderPass()
 	{
 	}
@@ -1430,7 +1581,7 @@ namespace vk
 		m_subpassDependencies.push_back(dependency);
 	}
 
-	/*Framebuffer*/
+	/* Framebuffer */
 	Framebuffer::Framebuffer()
 	{
 	}
@@ -1472,7 +1623,7 @@ namespace vk
 		this->init();
 	}
 
-	/*Pipeline*/
+	/* Pipeline */
 	Pipeline::Pipeline()
 	{
 		m_vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1714,7 +1865,7 @@ namespace vk
 		vkCreateCommandPool(device, &createInfo, nullptr, &commandPool);
 	}
 
-	/*Raytracing*/
+	/* Raytracing */
 	AccelerationStructureInstance::AccelerationStructureInstance() {}
 	AccelerationStructureInstance::AccelerationStructureInstance(AccelerationStructure& accelerationStructure) {
 		m_instance.accelerationStructureReference = accelerationStructure.getDeviceAddress();
@@ -1745,7 +1896,7 @@ namespace vk
 		m_instance.flags = flags;
 	}
 
-	/*AccelerationStructure*/
+	/* AccelerationStructure */
 	AccelerationStructure::AccelerationStructure() {
 
 	}
@@ -1950,7 +2101,7 @@ namespace vk
 		return vkGetAccelerationStructureDeviceAddressKHR(device, &addressInfo);
 	}
 
-	/*RtPipeline*/
+	/* RtPipeline */
 	RtPipeline::RtPipeline(){}
 
 	RtPipeline::~RtPipeline(){}
@@ -2155,96 +2306,8 @@ namespace vk
 	}
 }
 
-bool isInstanceLayerSupported(const char* instanceLayer, VkLayerProperties* instanceLayerProperties, uint32_t amountOfInstanceLayers) {
-	for (uint32_t i = 0; i < amountOfInstanceLayers; i++) {
-		if (strcmp(instanceLayer, (char*)instanceLayerProperties[i].layerName))
-			return true;
-	}
-	return false;
-}
-
-bool isInstanceLayerSupported(const char* instanceLayer) {
-	uint32_t amountOfInstanceLayers;
-	vkEnumerateInstanceLayerProperties(&amountOfInstanceLayers, nullptr);
-	VkLayerProperties* instanceLayerProperties = new VkLayerProperties[amountOfInstanceLayers];
-	vkEnumerateInstanceLayerProperties(&amountOfInstanceLayers, instanceLayerProperties);
-
-	bool is = isInstanceLayerSupported(instanceLayer, instanceLayerProperties, amountOfInstanceLayers);
-
-	delete[] instanceLayerProperties;
-	return is;
-}
-
-bool isDeviceExtensionSupported(const char* deviceExtension, VkExtensionProperties* deviceExtensionProperties, uint32_t amountOfDeviceExtensions) {
-	for (uint32_t i = 0; i < amountOfDeviceExtensions; i++) {
-		if (strcmp(deviceExtension, (char*)deviceExtensionProperties[i].extensionName))
-			return true;
-	}
-	return false;
-}
-
-bool isDeviceExtensionSupported(const char* deviceExtension, VkPhysicalDevice physicalDevice) {
-	uint32_t amountOfDeviceExtensions;
-	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &amountOfDeviceExtensions, nullptr);
-	VkExtensionProperties* deviceExtensionProperties = new VkExtensionProperties[amountOfDeviceExtensions];
-	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &amountOfDeviceExtensions, deviceExtensionProperties);
-	
-	bool is = isDeviceExtensionSupported(deviceExtension, deviceExtensionProperties, amountOfDeviceExtensions);
-
-	delete[] deviceExtensionProperties;
-	return is;
-}
-
-void initVulkan(vk::initInfo info)
+void initVulkan(vk::initInfo& info)
 {
-	std::vector<const char *> enabledInstanceLayers = {};
-
-	//check if requested Instance layers are supported
-	uint32_t amountOfInstanceLayers;
-	vkEnumerateInstanceLayerProperties(&amountOfInstanceLayers, nullptr);
-	VkLayerProperties* instanceLayerProperties = new VkLayerProperties[amountOfInstanceLayers];
-	vkEnumerateInstanceLayerProperties(&amountOfInstanceLayers, instanceLayerProperties);
-
-	if (info.printDebugInfo) {
-		std::cout << 
-			"\nInstance:\n" <<
-			"Requested InstanceLayers:\n";
-	}
-
-	bool allSupported = true;
-	for (auto requested : info.requestedInstanceLayers) {
-		bool isRequestedSupported = isInstanceLayerSupported(requested, instanceLayerProperties, amountOfInstanceLayers);
-		if (info.printDebugInfo) {
-			std::cout << requested << ": ";
-			if (isRequestedSupported)
-				std::cout << "Supported";
-			else
-				std::cout << "Not Supported";
-			std::cout << "\n";
-		}
-		if (isRequestedSupported)
-			enabledInstanceLayers.push_back(requested);
-	}
-
-	delete[] instanceLayerProperties;
-
-	//throw exception if something is not supported
-	if (!allSupported) {
-		std::cerr << "initVulkan() | One or multiple InstanceLayers not supported\n";
-		throw std::runtime_error("One or multiple InstanceLayers not supported");
-	}
-	allSupported = true;
-
-	// requesting instanceExtensions not implemented yet
-	std::vector<const char *> enabledInstanceExtensions = {};
-
-	uint32_t amountOfRequiredGLFWExtensions; // Add Required GLFW Extensions to Instance Extensions
-	auto glfwExtensions = glfwGetRequiredInstanceExtensions(&amountOfRequiredGLFWExtensions);
-	for (size_t i = 0; i < amountOfRequiredGLFWExtensions; i++)
-		enabledInstanceExtensions.push_back(glfwExtensions[i]);
-
-	vk::createInstance(vk::instance, enabledInstanceLayers, enabledInstanceExtensions, info.applicationName); // Create Instance
-	
 	// choose physical device | prefer requested device
 	auto allPhysicalDevices = vkUtils::getAllPhysicalDevices(vk::instance);
 	std::vector<const char*> enabledDeviceLayers = {};
@@ -2271,7 +2334,7 @@ void initVulkan(vk::initInfo info)
 				"Requested DeviceExtensions:\n";
 			}
 			for (auto& requested : info.requestedDeviceExtensions) {
-				bool isRequestedSupported = isDeviceExtensionSupported(requested, deviceExtensionProperties, amountOfDeviceExtensions);
+				bool isRequestedSupported = vkUtils::isDeviceExtensionSupported(requested, deviceExtensionProperties, amountOfDeviceExtensions);
 				isDeviceSupported &= isRequestedSupported;
 
 				if (info.printDebugInfo) {
@@ -2316,7 +2379,6 @@ void initVulkan(vk::initInfo info)
 	enabledDeviceLayers = info.requestedDeviceLayers;
 	enabledDeviceExtensions = info.requestedDeviceExtensions;
 
-	//TODO check if features are supported
 	vk::createLogicalDevice(vk::physicalDevice, vk::device, enabledDeviceLayers, enabledDeviceExtensions, info.features); // Create Logical Device
 
 	// load extension functions

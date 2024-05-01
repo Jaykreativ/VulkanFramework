@@ -40,6 +40,7 @@ extern PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR_;
 
 namespace vk
 {
+
 	class Registery; // forwarded decleration
 
 	class Registerable {
@@ -88,6 +89,59 @@ namespace vk
 		std::unordered_map<Registerable*, std::vector<Registerable*>> m_dependencyObjMap;
 
 		friend class Registerable;
+	};
+
+	struct initInfo {
+		const char* applicationName;
+		std::vector<const char*> requestedInstanceLayers = {};
+		//std::vector<const char*> requestedInstanceExtensions = {}; // TODO implement instanceExtensions
+		uint32_t    deviceIndex = 0;
+		bool checkDeviceSupport = true;
+		std::vector<const char*> requestedDeviceLayers = {};
+		std::vector<const char*> requestedDeviceExtensions = {};
+		VkPhysicalDeviceFeatures2 features = {};
+#ifdef _DEBUG
+		bool printDebugInfo = true;
+#else
+		bool printDebugInfo = false;
+#endif
+	};
+
+	void initInstance(initInfo& info);
+
+	class PhysicalDevice {
+	public:
+		PhysicalDevice();
+		PhysicalDevice(VkPhysicalDevice physicalDevice);
+		PhysicalDevice(uint32_t deviceIndex);
+
+		~PhysicalDevice();
+
+		bool isExtensionSupported(const char* extension);
+
+		bool areExtensionsSupported(const char** extensions, uint32_t extensionCount);
+
+		VkPhysicalDeviceProperties getProperties();
+
+		VkPhysicalDeviceFeatures2 getSupportedFeatures2();
+
+		VkPhysicalDeviceVulkan12Features getSupportedVulkan12Features();
+
+		VkPhysicalDeviceAccelerationStructureFeaturesKHR getSupportedAccelerationStructureFeatures();
+
+		VkPhysicalDeviceRayTracingPipelineFeaturesKHR getSupportedRayTraycingPipelineFeatures();
+
+		std::string getName();
+
+		static uint32_t getPhysicalDeviceCount();
+
+		/*
+		* Returns a PhysicalDevice array of physicalDeviceCount size
+		*/
+		static std::vector<PhysicalDevice> getAllPhysicalDevices();
+
+	private:
+		VkPhysicalDevice m_physicalDevice;
 	};
 
 	class CommandBuffer {
@@ -736,22 +790,6 @@ namespace vk
 
 	uint32_t getQueueFamily();
 
-	struct initInfo {
-		const char* applicationName;
-		std::vector<const char*> requestedInstanceLayers = {};
-		//std::vector<const char*> requestedInstanceExtensions = {}; // TODO implement instanceExtensions
-		uint32_t    deviceIndex = 0;
-		bool checkDeviceSupport = true;
-		std::vector<const char*> requestedDeviceLayers = {};
-		std::vector<const char*> requestedDeviceExtensions = {};
-		VkPhysicalDeviceFeatures2 features = {};
-#ifdef _DEBUG
-		bool printDebugInfo = true;
-#else
-		bool printDebugInfo = false;
-#endif
-	};
-
 	class RtPipeline {
 	public:
 		RtPipeline();
@@ -867,7 +905,8 @@ namespace vk
 	};
 }
 
-void initVulkan(vk::initInfo info);
+
+void initVulkan(vk::initInfo& info);
 
 void terminateVulkan();
 
