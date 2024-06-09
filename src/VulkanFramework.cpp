@@ -134,7 +134,7 @@ namespace vk
 						objs.erase(objs.begin()+j);
 						if (objs.size() <= 0) {
 							m_registery->m_dependencyObjMap.erase(depPairs[i].first);
-						}
+	}
 					}
 				}
 			}
@@ -164,8 +164,8 @@ namespace vk
 			auto& depPairs = m_registery->m_objConnectionMap.at(this);
 			for (uint32_t i = 0; i < depPairs.size(); i++) {
 				depPairs[i].second(this, depPairs[i].first, eINIT);
-			}
 		}
+	}
 	}
 
 	void Registerable::update() {
@@ -440,6 +440,7 @@ namespace vk
 	void CommandBuffer::submit(VkFence fence) {
 		VkQueue queue;
 		submit(&queue, fence);
+		vkQueueWaitIdle(queue);
 	}
 	void CommandBuffer::submit()
 	{
@@ -830,7 +831,7 @@ namespace vk
 
 	void Image::uploadData(uint32_t size, void* data) {
 		if (!VK_IS_FLAG_ENABLED(m_usage, VK_IMAGE_USAGE_TRANSFER_DST_BIT))
-		{
+	{
 			std::cerr << "Image cant be destination of upload transfer: enable VK_IMAGE_USAGE_TRANSFER_DST_BIT\n";
 			throw std::runtime_error("Image cant be destination of upload transfer");
 		}
@@ -1133,7 +1134,7 @@ namespace vk
 					pBufferInfo[j].offset = descriptor.bufferInfos[j].offset;
 					pBufferInfo[j].range = descriptor.bufferInfos[j].range;
 				}
-			}
+		}
 			write.pBufferInfo = pBufferInfo;
 
 			VkBufferView* pTexelBufferView = nullptr;
@@ -1141,7 +1142,7 @@ namespace vk
 				pTexelBufferView = descriptor.texelBufferViews.data();
 			}
 			write.pTexelBufferView = pTexelBufferView;
-		}
+	}
 
 		vkUpdateDescriptorSets(device, writeCount, pWrites, 0, nullptr);
 
@@ -1168,7 +1169,7 @@ namespace vk
 
 	void DescriptorSet::free() {
 		vkFreeDescriptorSets(device, *m_pDescriptorPool, 1, &m_descriptorSet);
-	}
+		}
 
 	void DescriptorSet::addDescriptor(Descriptor descriptor) {
 		m_descriptors.push_back(descriptor);
@@ -1184,11 +1185,11 @@ namespace vk
 
 	void DescriptorSet::setDescriptor(uint32_t index, Descriptor descriptor) {
 		m_descriptors[index] = descriptor;
-	}
+		}
 
 	void DescriptorSet::setDescriptorPool(const DescriptorPool* pDescriptorPool) {
 		m_pDescriptorPool = pDescriptorPool;
-	}
+		}
 
 	Descriptor DescriptorSet::getDescriptor(uint32_t index) {
 		return m_descriptors[index];
@@ -1213,7 +1214,7 @@ namespace vk
 	void DescriptorPool::update() {
 		destroy();
 		init();
-	}
+		}
 
 	void DescriptorPool::destroy() {
 		vkDestroyDescriptorPool(device, m_descriptorPool, nullptr);
@@ -1243,16 +1244,17 @@ namespace vk
 
 	void DescriptorPool::addPoolSize(VkDescriptorPoolSize poolSize) {
 		m_poolSizes.push_back(poolSize);
-	}
+		}
 	void DescriptorPool::addPoolSize(VkDescriptorType type, uint32_t count) {
 		m_poolSizes.push_back({type, count});
-	}
+		}
 	void DescriptorPool::addPoolSizes(VkDescriptorPoolSize* poolSizes, uint32_t poolSizeCount) {
 		if (!poolSizes || poolSizeCount <= 0) return;
 		auto oldSize = m_poolSizes.size();
 		m_poolSizes.resize(m_poolSizes.size() + poolSizeCount);
 		memcpy(&m_poolSizes[oldSize], poolSizes, sizeof(VkDescriptorPoolSize)*poolSizeCount);
-	}
+		}
+		writeDescriptorSet.pTexelBufferView = pTexelBufferView;
 
 	//void descriptorPoolCreate(
 	//	std::vector<VkDescriptorPoolSize>&                      poolSizes,
@@ -1590,6 +1592,9 @@ namespace vk
 
 	Framebuffer::~Framebuffer(){}
 
+		vkDestroyFramebuffer(vk::device, m_framebuffer, nullptr);
+	}
+
 	void Framebuffer::init()
 	{
 		if (m_isInit)
@@ -1866,6 +1871,7 @@ namespace vk
 
 		vkCreateCommandPool(device, &createInfo, nullptr, &commandPool);
 	}
+	// Raytracing
 
 	/* Raytracing */
 	AccelerationStructureInstance::AccelerationStructureInstance() {}
@@ -2280,6 +2286,10 @@ namespace vk
 		VkResult result = vkQueuePresentKHR(queue, &presentInfo);
 		VK_ASSERT(result);
 	}
+	void queuePresent(VkQueue queue, Swapchain &swapchain, uint32_t imageIndex)
+	{
+		queuePresent(queue, swapchain.getVkSwapchainKHR(), imageIndex);
+	}
 	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex, VkSemaphore waitSemaphore) {
 		VkPresentInfoKHR presentInfo;
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -2293,6 +2303,9 @@ namespace vk
 
 		VkResult result = vkQueuePresentKHR(queue, &presentInfo);
 		VK_ASSERT(result);
+	}
+	void queuePresent(VkQueue queue, Swapchain& swapchain, uint32_t imageIndex, VkSemaphore waitSemaphore) {
+		queuePresent(queue, swapchain.getVkSwapchainKHR(), imageIndex, waitSemaphore);
 	}
 
 	void deviceWaitIdle()
@@ -2392,7 +2405,7 @@ void initVulkan(vk::initInfo& info)
 	vkCmdBuildAccelerationStructuresKHR_ = (PFN_vkCmdBuildAccelerationStructuresKHR)vkGetDeviceProcAddr(vk::device, "vkCmdBuildAccelerationStructuresKHR");
 	vkGetAccelerationStructureDeviceAddressKHR_ = (PFN_vkGetAccelerationStructureDeviceAddressKHR)vkGetDeviceProcAddr(vk::device, "vkGetAccelerationStructureDeviceAddressKHR");
 	vkDestroyAccelerationStructureKHR_ = (PFN_vkDestroyAccelerationStructureKHR)vkGetDeviceProcAddr(vk::device, "vkDestroyAccelerationStructureKHR");
-	
+
 	// Get Properties
 	VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
 	prop2.pNext = &vk::rtProperties;
@@ -2402,6 +2415,8 @@ void initVulkan(vk::initInfo& info)
 	for (size_t i = 0; i < vk::queues.size(); i++)
 		vkGetDeviceQueue(vk::device, vk::queueFamily, i, &vk::queues[i]); // Get Queues from Device
 	vkUtils::queueHandler::init(vk::queues);
+
+	// TODO Make compile automatic in shader class
 
 	vk::createCommandPool(vk::device, vk::queueFamily, vk::commandPool);
 }

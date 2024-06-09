@@ -342,7 +342,7 @@ namespace vk
 		VkMemoryPropertyFlags m_memoryProperties = 0;
 		VkAccessFlags m_accessMask = 0;
 	};
-	
+
 	class Sampler {
 	public:
 		Sampler();
@@ -375,9 +375,9 @@ namespace vk
 			-1000,
 			1000,
 			VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
-		};
 	};
-
+	};
+	
 	class Surface {
 	public:
 		Surface(){}
@@ -768,7 +768,9 @@ namespace vk
 	void changeImageLayout(VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout currentLayout, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
 
 	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex);
+	void queuePresent(VkQueue queue, Swapchain& swapchain, uint32_t imageIndex);
 	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex, VkSemaphore waitSemaphore);
+	void queuePresent(VkQueue queue, Swapchain& swapchain, uint32_t imageIndex, VkSemaphore waitSemaphore);
 
 	void deviceWaitIdle();
 	void allQueuesWaitIdle();
