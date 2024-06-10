@@ -1244,17 +1244,16 @@ namespace vk
 
 	void DescriptorPool::addPoolSize(VkDescriptorPoolSize poolSize) {
 		m_poolSizes.push_back(poolSize);
-		}
+	}
 	void DescriptorPool::addPoolSize(VkDescriptorType type, uint32_t count) {
 		m_poolSizes.push_back({type, count});
-		}
+	}
 	void DescriptorPool::addPoolSizes(VkDescriptorPoolSize* poolSizes, uint32_t poolSizeCount) {
 		if (!poolSizes || poolSizeCount <= 0) return;
 		auto oldSize = m_poolSizes.size();
 		m_poolSizes.resize(m_poolSizes.size() + poolSizeCount);
 		memcpy(&m_poolSizes[oldSize], poolSizes, sizeof(VkDescriptorPoolSize)*poolSizeCount);
-		}
-		writeDescriptorSet.pTexelBufferView = pTexelBufferView;
+	}
 
 	//void descriptorPoolCreate(
 	//	std::vector<VkDescriptorPoolSize>&                      poolSizes,
@@ -1591,9 +1590,6 @@ namespace vk
 	}
 
 	Framebuffer::~Framebuffer(){}
-
-		vkDestroyFramebuffer(vk::device, m_framebuffer, nullptr);
-	}
 
 	void Framebuffer::init()
 	{
