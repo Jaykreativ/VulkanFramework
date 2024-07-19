@@ -608,6 +608,12 @@ namespace vk
 		vkBindBufferMemory(vk::device, m_buffer, m_deviceMemory, 0);
 	}
 
+	void Buffer::resize(VkDeviceSize size) {
+		if (m_size == size) return;
+		m_size = size;
+		update();
+	}
+
 	void Buffer::map(void **data)
 	{
 		map(0, data);
@@ -654,7 +660,11 @@ namespace vk
 		stagingBuffer.destroy();
 	}
 
-	VkDeviceAddress Buffer::getVkDeviceAddress() {
+	void Buffer::setSize(VkDeviceSize size) {
+		m_size = size;
+	}
+
+	VkDeviceAddress Buffer::getVkDeviceAddress() const {
 		if (!VK_IS_FLAG_ENABLED(m_usage, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)) {
 			std::cerr << "ERROR: Buffer usage shader address is not enabled, enable VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT\n";
 			throw std::runtime_error("Usage flag not set");
@@ -687,6 +697,12 @@ namespace vk
 	}
 
 	/* Image */
+	Image::Image(){}
+
+	Image::Image(VkImage image)
+		: m_image(image)
+	{}
+
 	Image::~Image(){}
 
 	void Image::init()
@@ -853,8 +869,21 @@ namespace vk
 		stagingBuffer.destroy();
 	}
 
-	void Image::cmdChangeLayout(VkCommandBuffer cmd, VkImageLayout layout, VkAccessFlags dstAccessMask) {
-		vk::cmdChangeImageLayout(cmd, *this, m_subresourceRange, m_currentLayout, layout, m_accessMask, dstAccessMask);
+	void Image::cmdChangeLayout(
+		VkCommandBuffer cmd,
+		VkImageLayout layout, VkAccessFlags dstAccessMask,
+		VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask
+	) {
+		VkImageMemoryBarrier imageMemoryBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr };
+		imageMemoryBarrier.srcAccessMask = m_accessMask;
+		imageMemoryBarrier.dstAccessMask = dstAccessMask;
+		imageMemoryBarrier.oldLayout = m_currentLayout;
+		imageMemoryBarrier.newLayout = layout;
+		imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		imageMemoryBarrier.image = m_image;
+		imageMemoryBarrier.subresourceRange = m_subresourceRange;
+		vkCmdPipelineBarrier(cmd, srcStageMask, dstStageMask, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
 		m_currentLayout = layout;
 		m_accessMask = dstAccessMask;
 	}
@@ -901,14 +930,7 @@ namespace vk
 	}
 
 	/* Surface */
-	Surface::~Surface()
-	{
-		if (!m_isInit)
-			return;
-		m_isInit = false;
-
-		vkDestroySurfaceKHR(vk::instance, m_surface, nullptr);
-	}
+	Surface::~Surface(){}
 
 	void Surface::init()
 	{
@@ -926,21 +948,18 @@ namespace vk
 			throw std::runtime_error("Surface not Supported!");
 	}
 
+	void Surface::destroy() {
+		if (!m_isInit) return;
+		m_isInit = false;
+
+		vkDestroySurfaceKHR(instance, m_surface, nullptr);
+	}
+
 	/* Swapchain */
 	Swapchain::Swapchain(){}
 
-	Swapchain::~Swapchain()
-	{
-		if (!m_isInit)
-			return;
-		m_isInit = false;
-
-		for (VkImageView imageView : m_imageViews)
-		{
-			vkDestroyImageView(vk::device, imageView, nullptr);
-		}
-
-		vkDestroySwapchainKHR(vk::device, m_swapchain, nullptr);
+	Swapchain::~Swapchain() { 
+		destroy();
 	}
 
 	void Swapchain::init()
@@ -992,41 +1011,34 @@ namespace vk
 		uint32_t imageCount = 0;
 		vkGetSwapchainImagesKHR(vk::device, m_swapchain, &imageCount, nullptr);
 		m_images.resize(imageCount);
-		m_imageViews.resize(imageCount);
-		vkGetSwapchainImagesKHR(vk::device, m_swapchain, &imageCount, m_images.data());
+		VkImage* pVkImages = new VkImage[imageCount];
+		//m_imageViews.resize(imageCount);
+		vkGetSwapchainImagesKHR(vk::device, m_swapchain, &imageCount, pVkImages);
 
-		m_imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		m_imageSubresourceRange.baseMipLevel = 0;
-		m_imageSubresourceRange.levelCount = 1;
-		m_imageSubresourceRange.baseArrayLayer = 0;
-		m_imageSubresourceRange.layerCount = 1;
+		for (uint32_t i = 0; i < imageCount; i++) {
+			auto* pImage = &(m_images[i] = vk::Image(pVkImages[i]));
+			pImage->setAspect(VK_IMAGE_ASPECT_COLOR_BIT);
+			pImage->setExtent({ m_imageExtent.width, m_imageExtent.height , 1});
+			pImage->setFormat(m_imageFormat);
+			pImage->setInitialLayout(VK_IMAGE_LAYOUT_UNDEFINED);
+			pImage->setMemoryProperties(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			pImage->setType(VK_IMAGE_TYPE_2D);
+			pImage->setViewType(VK_IMAGE_VIEW_TYPE_2D);
+			pImage->setUsage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
 
-		for (int i = 0; i < imageCount; i++)
-		{
-			VkImageViewCreateInfo viewCreateInfo;
-			viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			viewCreateInfo.pNext = nullptr;
-			viewCreateInfo.flags = 0;
-			viewCreateInfo.image = m_images[i];
-			viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			viewCreateInfo.format = m_imageFormat;
-			viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-			viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-			viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-			viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-			viewCreateInfo.subresourceRange = m_imageSubresourceRange;
-
-			vkCreateImageView(vk::device, &viewCreateInfo, nullptr, &m_imageViews[i]);
+			pImage->initView();
 		}
+
+		delete[] pVkImages;
 	}
 
 	void Swapchain::update()
 	{
 		if (!m_isInit) return;
 
-		for (VkImageView imageView : m_imageViews)
+		for (auto& image : m_images)
 		{
-			vkDestroyImageView(vk::device, imageView, nullptr);
+			image.destroyView();
 		}
 		VkSwapchainKHR oldSwapchain = m_swapchain;
 
@@ -1036,14 +1048,44 @@ namespace vk
 		vkDestroySwapchainKHR(vk::device, oldSwapchain, nullptr);
 	}
 
-	VkImage Swapchain::getImage(uint32_t index) {
-		if (index >= m_images.size()) return VK_NULL_HANDLE;
-		return m_images[index];
+	void Swapchain::destroy() {
+		if (!m_isInit)
+			return;
+		m_isInit = false;
+
+		for (auto& image : m_images)
+		{
+			image.destroyView();
+		}
+
+		vkDestroySwapchainKHR(vk::device, m_swapchain, nullptr);
 	}
 
-	VkImageView Swapchain::getImageView(uint32_t index) {
-		if (index >= m_imageViews.size()) return VK_NULL_HANDLE;
-		return m_imageViews[index];
+	vk::Image* Swapchain::getImage(uint32_t index) {
+		if (index >= m_images.size()) return nullptr;
+		return &m_images[index];
+	}
+	const vk::Image* Swapchain::getImage(uint32_t index) const {
+		if (index >= m_images.size()) return nullptr;
+		return &m_images[index];
+	}
+
+	VkImage Swapchain::getVkImage(uint32_t index) {
+		if (index >= m_images.size()) return VK_NULL_HANDLE;
+		return m_images[index].getVkImage();
+	}
+	const VkImage Swapchain::getVkImage(uint32_t index) const {
+		if (index >= m_images.size()) return VK_NULL_HANDLE;
+		return m_images[index].getVkImage();
+	}
+
+	VkImageView Swapchain::getVkImageView(uint32_t index) {
+		if (index >= m_images.size()) return VK_NULL_HANDLE;
+		return m_images[index].getVkImageView();
+	}
+	const VkImageView Swapchain::getVkImageView(uint32_t index) const {
+		if (index >= m_images.size()) return VK_NULL_HANDLE;
+		return m_images[index].getVkImageView();
 	}
 
 	/* DescriptorSet */
@@ -1867,7 +1909,6 @@ namespace vk
 
 		vkCreateCommandPool(device, &createInfo, nullptr, &commandPool);
 	}
-	// Raytracing
 
 	/* Raytracing */
 	AccelerationStructureInstance::AccelerationStructureInstance() {}
@@ -1901,28 +1942,14 @@ namespace vk
 	}
 
 	/* AccelerationStructure */
-	AccelerationStructure::AccelerationStructure() {
-
-	}
-	AccelerationStructure::~AccelerationStructure() {
-	
-	}
+	AccelerationStructure::AccelerationStructure() {}
+	AccelerationStructure::~AccelerationStructure() {}
 
 	void AccelerationStructure::init() {
-		VkAccelerationStructureBuildGeometryInfoKHR buildGeometryInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
-		buildGeometryInfo.pNext = nullptr;
-		buildGeometryInfo.type = m_type;
-		buildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-		buildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
-		buildGeometryInfo.geometryCount = m_geometryVector.size();
-		buildGeometryInfo.pGeometries = m_geometryVector.data();
+		if (m_isInit) return;
+		m_isInit = true;
 
-		VkAccelerationStructureBuildSizesInfoKHR sizeInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
-
-		vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
-			&buildGeometryInfo, &m_buildRangeInfoVector[0].primitiveCount, &sizeInfo);
-
-		m_buffer = Buffer(sizeInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR);
+		m_buffer = Buffer(1, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR);
 		m_buffer.init(); m_buffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		VkAccelerationStructureCreateInfoKHR createInfo;
@@ -1931,38 +1958,42 @@ namespace vk
 		createInfo.createFlags = 0;
 		createInfo.buffer = m_buffer;
 		createInfo.offset = 0;
-		createInfo.size = sizeInfo.accelerationStructureSize;
+		createInfo.size = 1;
 		createInfo.type = m_type;
 		createInfo.deviceAddress = 0;
 
 		vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &m_accelerationStructure);
 
-		Buffer scratchBuffer = Buffer(sizeInfo.buildScratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-		scratchBuffer.init(); scratchBuffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		// TLAS specific initialisation
+		if (m_type == VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR) {
+			m_instancesBuffer = Buffer(
+				sizeof(AccelerationStructureInstance),
+				VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+			);
+			m_instancesBuffer.init(); m_instancesBuffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		}
 
-		buildGeometryInfo.dstAccelerationStructure = m_accelerationStructure;
-		buildGeometryInfo.scratchData.deviceAddress = scratchBuffer.getVkDeviceAddress();
-
-		VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfo = &m_buildRangeInfoVector[0];
-
-		CommandBuffer cmd; cmd.allocate(); cmd.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-
-		vkCmdBuildAccelerationStructuresKHR(cmd, 1, &buildGeometryInfo, &pBuildRangeInfo);
-
-		cmd.end(); cmd.submit(); cmd.free();
-
-		scratchBuffer.destroy();
+		Registerable::init();
 	}
 
 	void AccelerationStructure::destroy() {
+		Registerable::destroy();
+
+		if (!m_isInit) return;
+		m_isInit = false;
+
 		for (auto buffer : m_additionalBuffers) {
 			buffer->destroy();
 			delete buffer;
 		}
 		m_additionalBuffers.clear();
-		m_buffer.destroy();
-		m_instanceBuffer.destroy();
 		vkDestroyAccelerationStructureKHR(device, m_accelerationStructure, nullptr);
+		m_buffer.destroy();
+
+		// TLAS specific destruction
+		if (m_type == VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR) {
+			m_instancesBuffer.destroy();
+		}
 	}
 
 	void AccelerationStructure::update() {
@@ -1973,17 +2004,39 @@ namespace vk
 		buildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
 		buildGeometryInfo.geometryCount = m_geometryVector.size();
 		buildGeometryInfo.pGeometries = m_geometryVector.data();
+		buildGeometryInfo.srcAccelerationStructure = m_accelerationStructure;
+		buildGeometryInfo.dstAccelerationStructure = m_accelerationStructure;
 
 		VkAccelerationStructureBuildSizesInfoKHR sizeInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
 
 		vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
 			&buildGeometryInfo, &m_buildRangeInfoVector[0].primitiveCount, &sizeInfo);
 
+		if (sizeInfo.accelerationStructureSize != m_buffer.getSize()) {
+			m_buffer.resize(sizeInfo.accelerationStructureSize);
+
+			vkDestroyAccelerationStructureKHR(device, m_accelerationStructure, nullptr);
+
+			VkAccelerationStructureCreateInfoKHR createInfo;
+			createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+			createInfo.pNext = nullptr;
+			createInfo.createFlags = 0;
+			createInfo.buffer = m_buffer;
+			createInfo.offset = 0;
+			createInfo.size = m_buffer.getSize();
+			createInfo.type = m_type;
+			createInfo.deviceAddress = 0;
+
+			vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &m_accelerationStructure);
+
+			buildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+			buildGeometryInfo.srcAccelerationStructure = VK_NULL_HANDLE;
+			buildGeometryInfo.dstAccelerationStructure = m_accelerationStructure;
+		}
+
 		Buffer scratchBuffer = Buffer(sizeInfo.buildScratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 		scratchBuffer.init(); scratchBuffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-		buildGeometryInfo.srcAccelerationStructure = m_accelerationStructure;
-		buildGeometryInfo.dstAccelerationStructure = m_accelerationStructure;
 		buildGeometryInfo.scratchData.deviceAddress = scratchBuffer.getVkDeviceAddress();
 
 		VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfo = &m_buildRangeInfoVector[0];
@@ -1995,38 +2048,32 @@ namespace vk
 		cmd.end(); cmd.submit(); cmd.free();
 
 		scratchBuffer.destroy();
+
+		Registerable::update();
 	}
 
-	void AccelerationStructure::addGeometry(std::vector<AccelerationStructureInstance>& instances) {
+	void AccelerationStructure::setGeometry(std::vector<AccelerationStructureInstance>& instances) {
 		uint32_t countInstances = static_cast<uint32_t>(instances.size());
 
-		m_instanceBuffer = Buffer(
-			countInstances * sizeof(AccelerationStructureInstance),
-			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-		);
-		m_instanceBuffer.init(); m_instanceBuffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		m_instanceBuffer.uploadData(m_instanceBuffer.getSize(), instances.data());
+		if (countInstances * sizeof(AccelerationStructureInstance) != m_instancesBuffer.getSize())
+			m_instancesBuffer.resize(countInstances * sizeof(AccelerationStructureInstance));
+
+		m_instancesBuffer.uploadData(m_instancesBuffer.getSize(), instances.data());
 
 		VkAccelerationStructureGeometryInstancesDataKHR instancesData{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR };
-		instancesData.data.deviceAddress = m_instanceBuffer.getVkDeviceAddress();
+		instancesData.data.deviceAddress = m_instancesBuffer.getVkDeviceAddress();
 
 		VkAccelerationStructureGeometryKHR instanceGeometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
 		instanceGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
 		instanceGeometry.geometry.instances = instancesData;
 
+		m_geometryVector.clear();
 		m_geometryVector.push_back(instanceGeometry);
+		m_buildRangeInfoVector.clear();
 		m_buildRangeInfoVector.push_back({(uint32_t)instances.size(), 0, 0, 0});
 	}
 
-	void AccelerationStructure::updateGeometry(std::vector<AccelerationStructureInstance>& instances) { // TODO add offset etc. options
-		if (instances.size() != m_instanceBuffer.getSize() / sizeof(AccelerationStructureInstance)) {
-			std::cerr << "Vector and Buffer size aren't equal: " << instances.size() << " != " << m_instanceBuffer.getSize() / sizeof(AccelerationStructureInstance) << "\n";
-			throw std::runtime_error("ERROR: vector too big");
-		}
-		m_instanceBuffer.uploadData(instances.size() * sizeof(AccelerationStructureInstance), instances.data());
-	}
-
-	void AccelerationStructure::addGeometry(Buffer& vertexBuffer, uint32_t vertexStride, Buffer& indexBuffer) {
+	void AccelerationStructure::addGeometry(const Buffer& vertexBuffer, uint32_t vertexStride, const Buffer& indexBuffer) {
 		auto vertexAddress = vkUtils::getBufferDeviceAddress(device, vertexBuffer);
 		auto indexAddress = vkUtils::getBufferDeviceAddress(device, indexBuffer);
 
@@ -2054,6 +2101,7 @@ namespace vk
 		offset.transformOffset = 0;
 
 		m_geometryVector.push_back(triangleGeometry);
+		m_buildRangeInfoVector.clear(); // remove when supporting multiple geometries
 		m_buildRangeInfoVector.push_back(offset);
 	}
 
@@ -2095,6 +2143,7 @@ namespace vk
 		offset.transformOffset = 0;
 
 		m_geometryVector.push_back(aabbGeometry);
+		m_buildRangeInfoVector.clear(); // remove when supporting multiple geometries
 		m_buildRangeInfoVector.push_back(offset);
 		m_additionalBuffers.push_back(aabbBuffer);
 	}
@@ -2244,10 +2293,15 @@ namespace vk
 		VK_ASSERT(result);
 	}
 
-	void cmdChangeImageLayout(VkCommandBuffer cmd, VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout currentLayout, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask) {
-		VkImageMemoryBarrier imageMemoryBarrier;
-		imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		imageMemoryBarrier.pNext = nullptr;
+	void changeImageLayout(
+		VkImage              image,         VkImageSubresourceRange subresourceRange,
+		VkImageLayout        currentLayout, VkImageLayout           layout,
+		VkAccessFlags        srcAccessMask, VkAccessFlags           dstAccessMask
+	) {
+		vk::CommandBuffer cmdBuffer = vk::CommandBuffer(true);
+		cmdBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+		
+		VkImageMemoryBarrier imageMemoryBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr };
 		imageMemoryBarrier.srcAccessMask = srcAccessMask;
 		imageMemoryBarrier.dstAccessMask = dstAccessMask;
 		imageMemoryBarrier.oldLayout = currentLayout;
@@ -2256,13 +2310,8 @@ namespace vk
 		imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		imageMemoryBarrier.image = image;
 		imageMemoryBarrier.subresourceRange = subresourceRange;
+		vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
 
-		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
-	}
-	void changeImageLayout(VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout currentLayout, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask) {
-		vk::CommandBuffer cmdBuffer = vk::CommandBuffer(true);
-		cmdBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-		cmdChangeImageLayout(cmdBuffer, image, subresourceRange, currentLayout, layout, srcAccessMask, dstAccessMask);
 		cmdBuffer.end();
 		cmdBuffer.submit(); cmdBuffer.free();
 	}

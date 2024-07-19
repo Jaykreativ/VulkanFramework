@@ -40,7 +40,6 @@ extern PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR_;
 
 namespace vk
 {
-
 	class Registery; // forwarded decleration
 
 	class Registerable {
@@ -186,7 +185,7 @@ namespace vk
 		std::vector<VkSemaphore> m_signalSemaphores;
 	};
 
-	class Buffer : public Registerable{
+	class Buffer : public Registerable {
 	public:
 		Buffer();
 		Buffer(VkDeviceSize size, VkBufferUsageFlags usage);
@@ -196,6 +195,7 @@ namespace vk
 		Buffer& operator=(const Buffer& other);
 
 		operator VkBuffer() { return m_buffer; }
+		operator const VkBuffer() const { return m_buffer; }
 
 		void init();
 
@@ -207,10 +207,10 @@ namespace vk
 
 		void free();
 
+		void resize(VkDeviceSize size); // TODO make update automatic and add a setSize method
+
 		void map(void** ptr);
 		void map(VkDeviceSize offset, void** ptr);
-
-		void resize(VkDeviceSize size) { m_size = size; } // TODO make update automatic and add a setSize method
 
 		void unmap();
 
@@ -219,17 +219,19 @@ namespace vk
 
 		void setUsage(VkBufferUsageFlags usage) { m_usage = usage; }
 
+		void setSize(VkDeviceSize size);
+
 		VkBuffer getVkBuffer() { return m_buffer; }
 
 		VkDeviceMemory getVkDeviceMemory() { return m_deviceMemory; }
 
-		VkDeviceAddress getVkDeviceAddress();
+		VkDeviceAddress getVkDeviceAddress() const;
 
-		VkDeviceSize getSize() { return m_size; }
+		VkDeviceSize getSize() const { return m_size; }
 
-		VkBufferUsageFlags getUsage() { return m_usage; }
+		VkBufferUsageFlags getUsage() const { return m_usage; }
 
-		VkMemoryPropertyFlags getMemoryPropertyFlags() { return m_memoryPropertyFlags; }
+		VkMemoryPropertyFlags getMemoryPropertyFlags() const { return m_memoryPropertyFlags; }
 
 		static VkDeviceAddress getBufferVkDeviceAddress(VkBuffer buffer);
 
@@ -249,7 +251,8 @@ namespace vk
 
 	class Image : public Registerable {
 	public:
-		Image() {}
+		Image();
+		Image(VkImage image);
 
 		~Image();
 
@@ -267,18 +270,22 @@ namespace vk
 
 		void destroyView();
 
-		void destroySampler();
-
 		void update();
 
 		void resize(uint32_t width, uint32_t height, uint32_t depth = 1);
 
 		void uploadData(uint32_t size, void* data);
 
-		void cmdChangeLayout(VkCommandBuffer cmd, VkImageLayout layout, VkAccessFlags dstAccessMask);
+		void cmdChangeLayout(VkCommandBuffer cmd, 
+			VkImageLayout layout, VkAccessFlags dstAccessMask,
+			VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT
+		);
 		void changeLayout(VkImageLayout layout, VkAccessFlags dstAccessMask);
 
+		// Setters
 		void setType(VkImageType type) { m_type = type; }
+
+		void setViewType(VkImageViewType viewType) { m_viewType = viewType; }
 
 		void setFormat(VkFormat format) { m_format = format; }
 
@@ -297,26 +304,26 @@ namespace vk
 
 		void setDepth(uint32_t depth) { m_extent.depth = std::max<uint32_t>(depth, 1); }
 
-		void setMemoryProperties(VkMemoryPropertyFlags memoryProperties) {
-			m_memoryProperties = memoryProperties;
-		}
+		void setMemoryProperties(VkMemoryPropertyFlags memoryProperties) { m_memoryProperties = memoryProperties; }
 
-		VkImage getVkImage() { return m_image; }
+		//Getters
+		const VkImage getVkImage() const { return m_image; }
 
-		VkDeviceMemory getVkDeviceMemory() { return m_deviceMemory; }
+		const VkDeviceMemory getVkDeviceMemory() const { return m_deviceMemory; }
 
-		VkImageView getVkImageView() { return m_imageView; }
+		const VkImageView getVkImageView() const { return m_imageView; }
 
-		VkImageSubresourceRange getSubresourceRange() { return m_subresourceRange; }
+		const VkImageSubresourceRange* getSubresourceRange() const { return &m_subresourceRange; }
 
-		VkImageLayout getLayout() { return m_currentLayout; }
+		VkImageLayout getLayout() const { return m_currentLayout; }
 
-		VkImageAspectFlags getAspect() { return m_aspect; }
+		VkImageAspectFlags getAspect() const { return m_aspect; }
 
-		uint32_t getMipLevelCount() { return m_mipLevelCount; }
+		uint32_t getMipLevelCount() const { return m_mipLevelCount; }
 
-		VkExtent3D getExtent() { return m_extent; }
+		VkExtent3D getExtent() const { return m_extent; }
 
+		// Static
 		static void copyBufferToImage(vk::Image* dst, vk::Buffer* src, VkDeviceSize size);
 
 	private:
@@ -384,13 +391,17 @@ namespace vk
 
 		~Surface();
 
-		operator VkSurfaceKHR() const { return m_surface; }
+		operator const VkSurfaceKHR() const { return m_surface; }
+		operator VkSurfaceKHR() { return m_surface; }
 
 		void init();
 
+		void destroy();
+
 		void setGLFWwindow(GLFWwindow* window) { m_GLFWwindow = window; }
 
-		VkSurfaceKHR getVkSurfaceKHR() const { return m_surface; }
+		const VkSurfaceKHR getVkSurfaceKHR() const { return m_surface; }
+		VkSurfaceKHR getVkSurfaceKHR() { return m_surface; }
 
 	private:
 		bool m_isInit = false;
@@ -411,6 +422,9 @@ namespace vk
 
 		void update();
 
+		void destroy();
+
+		//Setters
 		void setSurface(VkSurfaceKHR surface) { m_surface = surface; }
 		void setSurface(vk::Surface& surface) { m_surface = surface.getVkSurfaceKHR(); }
 
@@ -420,22 +434,28 @@ namespace vk
 
 		void setPresentMode(VkPresentModeKHR presentMode) { m_presentMode = presentMode; }
 
-		VkSwapchainKHR getVkSwapchainKHR() const { return m_swapchain; }
+		//Getters
+		VkSwapchainKHR getVkSwapchainKHR() { return m_swapchain; }
+		const VkSwapchainKHR getVkSwapchainKHR() const { return m_swapchain; }
 
-		uint32_t getImageCount() { return m_images.size(); }
+		uint32_t getImageCount() const { return m_images.size(); }
 
-		VkImage getImage(uint32_t index);
+		vk::Image* getImage(uint32_t index);
+		const vk::Image* getImage(uint32_t index) const;
+
+		VkImage getVkImage(uint32_t index);
+		const VkImage getVkImage(uint32_t index) const;
+
+		VkImageView getVkImageView(uint32_t index);
+		const VkImageView getVkImageView(uint32_t index) const;
 
 		VkImageSubresourceRange getImageSubresourceRange() { return m_imageSubresourceRange; }
-
-		VkImageView getImageView(uint32_t index);
 
 	private:
 		bool m_isInit = false;
 
 		VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;
-		std::vector<VkImage> m_images;
-		std::vector<VkImageView> m_imageViews;
+		std::vector<vk::Image> m_images;
 
 		VkSurfaceKHR m_surface = VK_NULL_HANDLE;
 		VkImageSubresourceRange m_imageSubresourceRange;
@@ -539,48 +559,6 @@ namespace vk
 		uint32_t m_maxSets = 0;
 		std::vector<VkDescriptorPoolSize> m_poolSizes = {};
 	};
-	
-	/*class DescriptorPool {
-	public:
-		DescriptorPool() {}
-
-		~DescriptorPool();
-
-		operator VkDescriptorPool() { return m_descriptorPool; }
-
-		void init();
-
-		void update();
-
-		void addDescriptorSet();
-
-		void updateDescriptorSet();
-
-		void addDescriptor(const Descriptor& descriptor, uint32_t setIndex);
-
-		uint32_t getDescriptorSetCount() { return m_descriptorSetCount; }
-
-		 VkDescriptorPool getVkDescriptorPool() { return m_descriptorPool; }
-
-		VkDescriptorSet getVkDescriptorSet(int index) { return m_pDescriptorSets[index]; }
-
-		VkDescriptorSetLayout getVkDescriptorSetLayout(int index) { return m_pDescriptorSetLayouts[index]; }
-
-	private:
-		bool m_isInit = false;
-
-		VkDescriptorPool m_descriptorPool;
-		uint32_t m_descriptorSetArrayLength = 0;
-		VkDescriptorSet* m_pDescriptorSets = nullptr;
-		VkDescriptorSetLayout* m_pDescriptorSetLayouts = nullptr;
-
-		uint32_t m_descriptorSetCount = 0;
-		std::vector<VkDescriptorPoolSize> m_poolSizes;
-		std::vector<VkDescriptorSetLayoutCreateInfo> m_setLayoutCreateInfos;
-		std::vector<std::vector<VkDescriptorSetLayoutBinding>> m_setLayoutCreateInfoBindings;
-		std::vector<VkWriteDescriptorSet> m_writeDescriptorSets;
-		std::vector<uint32_t> m_writeDescriptorSetIndices;
-	};*/
 
 	class Shader {
 	public:
@@ -764,8 +742,11 @@ namespace vk
 	void acquireNextImage(VkSwapchainKHR swapchain, VkSemaphore semaphore, VkFence fence, uint32_t* pImageIndex);
 	void acquireNextImage(Swapchain& swapchain, VkSemaphore semaphore, VkFence fence, uint32_t* pImageIndex);
 
-	void cmdChangeImageLayout(VkCommandBuffer cmd, VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout currentLayout, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
-	void changeImageLayout(VkImage image, VkImageSubresourceRange subresourceRange, VkImageLayout currentLayout, VkImageLayout layout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask);
+	void changeImageLayout(
+		VkImage              image,         VkImageSubresourceRange subresourceRange,
+		VkImageLayout        currentLayout, VkImageLayout           layout,
+		VkAccessFlags        srcAccessMask, VkAccessFlags           dstAccessMask
+	);
 
 	void queuePresent(VkQueue queue, VkSwapchainKHR swapchain, uint32_t imageIndex);
 	void queuePresent(VkQueue queue, Swapchain& swapchain, uint32_t imageIndex);
@@ -867,7 +848,7 @@ namespace vk
 		friend class AccelerationStructure;
 	};
 
-	class AccelerationStructure {
+	class AccelerationStructure : public Registerable {
 	public:
 		AccelerationStructure();
 		~AccelerationStructure();
@@ -880,13 +861,21 @@ namespace vk
 
 		void update();
 
+		/*
+		* Called before init
+		* Either VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR or VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR
+		* Default VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR
+		*/
 		void setType(VkAccelerationStructureTypeKHR type) { m_type = type; }
 
-		void addGeometry(std::vector<AccelerationStructureInstance>& instances);
+		/*
+		* Called after init
+		* Sets the BLAS instances of this TLAS
+		* Is not synchronized with the vector and needs to be reset for changes
+		*/
+		void setGeometry(std::vector<AccelerationStructureInstance>& instances);
 
-		void updateGeometry(std::vector<AccelerationStructureInstance>& instances);
-
-		void addGeometry(Buffer& vertexBuffer, uint32_t vertexStride, Buffer& indexBuffer);
+		void addGeometry(const Buffer& vertexBuffer, uint32_t vertexStride, const Buffer& indexBuffer);// TODO add multiple geometries for BLAS
 
 		void addGeometry(float aabbMax[3], float aabbMin[3]);
 
@@ -896,17 +885,18 @@ namespace vk
 		VkAccelerationStructureKHR* getVkAccelerationStructureKHRptr() { return &m_accelerationStructure; }
 
 	private:
+		bool m_isInit = false;
+
 		Buffer m_buffer;
 		VkAccelerationStructureKHR m_accelerationStructure;
 
-		VkAccelerationStructureTypeKHR m_type; // Has to be set by user before initializing
+		VkAccelerationStructureTypeKHR m_type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR; // Has to be set by user before initializing
 		std::vector<vk::Buffer*> m_additionalBuffers; // Buffers like aabb buffers etc.
 		std::vector<VkAccelerationStructureGeometryKHR> m_geometryVector;
 		std::vector<VkAccelerationStructureBuildRangeInfoKHR> m_buildRangeInfoVector;
-		Buffer m_instanceBuffer;
+		Buffer m_instancesBuffer;
 	};
 }
-
 
 void initVulkan(vk::initInfo& info);
 
