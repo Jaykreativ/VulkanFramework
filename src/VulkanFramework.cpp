@@ -115,7 +115,17 @@ namespace vk
 		vkResetFences(vk::device, 1, &fence);
 	}
 	void waitForFence(VkFence fence) {
-		vkWaitForFences(vk::device, 1, &fence, true, std::numeric_limits<uint64_t>::max());
+		VkResult result = vkWaitForFences(vk::device, 1, &fence, true, std::numeric_limits<uint64_t>::max());
+		if (result != VK_SUCCESS) {
+			if (result == VK_TIMEOUT) {
+				std::cout << "ERROR: Fence timeout\n";
+				throw std::runtime_error("Fence timeout");
+			}
+			else {
+				std::cout << "ERROR: Fence error -> " << result << "\n";
+				throw std::runtime_error("Fence error");
+			}
+		}
 		resetFence(fence);
 	}
 
