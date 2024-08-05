@@ -445,12 +445,12 @@ namespace vk
 		submitInfo.pSignalSemaphores = m_signalSemaphores.data();
 
 		*queue = vkUtils::queueHandler::getQueue();
-		vkQueueSubmit(*queue, 1, &submitInfo, fence);
+		VkResult result = vkQueueSubmit(*queue, 1, &submitInfo, fence);
+		VK_ASSERT(result);
 	}
 	void CommandBuffer::submit(VkFence fence) {
 		VkQueue queue;
 		submit(&queue, fence);
-		vkQueueWaitIdle(queue);
 	}
 	void CommandBuffer::submit()
 	{
@@ -1030,7 +1030,7 @@ namespace vk
 			pImage->setAspect(VK_IMAGE_ASPECT_COLOR_BIT);
 			pImage->setExtent({ m_imageExtent.width, m_imageExtent.height , 1});
 			pImage->setFormat(m_imageFormat);
-			pImage->setInitialLayout(VK_IMAGE_LAYOUT_UNDEFINED);
+			pImage->setLayout(VK_IMAGE_LAYOUT_UNDEFINED);
 			pImage->setMemoryProperties(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 			pImage->setType(VK_IMAGE_TYPE_2D);
 			pImage->setViewType(VK_IMAGE_VIEW_TYPE_2D);
@@ -1535,14 +1535,7 @@ namespace vk
 		m_shaderStage.pSpecializationInfo = nullptr;
 	}
 
-	Shader::~Shader()
-	{
-		if (!m_isInit)
-			return;
-		m_isInit = false;
-
-		vkDestroyShaderModule(vk::device, m_module, nullptr);
-	}
+	Shader::~Shader(){}
 
 	void Shader::init()
 	{
@@ -1564,6 +1557,14 @@ namespace vk
 		m_shaderStage.module = m_module;
 	}
 
+	void Shader::destroy() {
+		if (!m_isInit)
+			return;
+		m_isInit = false;
+
+		vkDestroyShaderModule(vk::device, m_module, nullptr);
+	}
+
 	void Shader::compile(std::string srcDir, std::vector<std::string> srcNames, std::vector<std::string> dstDirs) {
 		for (auto srcName : srcNames) {
 			std::string dstName = srcName + ".spv";
@@ -1576,23 +1577,9 @@ namespace vk
 	}
 
 	/* RenderPass */
-	RenderPass::RenderPass()
-	{
-	}
+	RenderPass::RenderPass(){}
 
-	RenderPass::~RenderPass()
-	{
-		for (VkAttachmentReference *ptr : m_attachmentReferencePtrs)
-		{
-			delete ptr;
-		}
-
-		if (!m_isInit)
-			return;
-		m_isInit = false;
-
-		vkDestroyRenderPass(vk::device, m_renderPass, nullptr);
-	}
+	RenderPass::~RenderPass(){}
 
 	void RenderPass::init()
 	{
@@ -1612,6 +1599,19 @@ namespace vk
 		createInfo.pDependencies = m_subpassDependencies.data();
 
 		vkCreateRenderPass(vk::device, &createInfo, nullptr, &m_renderPass);
+	}
+
+	void RenderPass::destroy() {
+		for (VkAttachmentReference* ptr : m_attachmentReferencePtrs)
+		{
+			delete ptr;
+		}
+
+		if (!m_isInit)
+			return;
+		m_isInit = false;
+
+		vkDestroyRenderPass(vk::device, m_renderPass, nullptr);
 	}
 
 	void RenderPass::addAttachmentDescription(const VkAttachmentDescription& description) {
@@ -1745,7 +1745,7 @@ namespace vk
 		m_colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 		m_colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
 		m_colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		m_colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		m_colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
 		m_colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 		m_colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
@@ -1768,15 +1768,7 @@ namespace vk
 		m_dynamicStateCreateInfo.pDynamicStates = nullptr;
 	}
 
-	Pipeline::~Pipeline()
-	{
-		if (!m_isInit)
-			return;
-		m_isInit = false;
-
-		vkDestroyPipeline(vk::device, m_pipeline, nullptr);
-		vkDestroyPipelineLayout(vk::device, m_pipelineLayout, nullptr);
-	}
+	Pipeline::~Pipeline(){}
 
 	void Pipeline::init()
 	{
@@ -1825,12 +1817,21 @@ namespace vk
 		createInfo.pDynamicState = &m_dynamicStateCreateInfo;
 		createInfo.layout = m_pipelineLayout;
 		createInfo.renderPass = m_renderPass;
-		createInfo.subpass = 0;
+		createInfo.subpass = m_subpassIndex;
 		createInfo.basePipelineHandle = VK_NULL_HANDLE;
 		createInfo.basePipelineIndex = -1;
 
 		VkResult result = vkCreateGraphicsPipelines(vk::device, VK_NULL_HANDLE, 1, &createInfo, nullptr, &m_pipeline);
 		VK_ASSERT(result);
+	}
+
+	void Pipeline::destroy() {
+		if (!m_isInit)
+			return;
+		m_isInit = false;
+
+		vkDestroyPipeline(vk::device, m_pipeline, nullptr);
+		vkDestroyPipelineLayout(vk::device, m_pipelineLayout, nullptr);
 	}
 
 	void Pipeline::addShader(const VkPipelineShaderStageCreateInfo &shaderStage)
@@ -1883,6 +1884,14 @@ namespace vk
 		m_scissors.erase(m_scissors.begin() + index);
 	}
 
+	void Pipeline::enableBlending() {
+		m_colorBlendAttachment.blendEnable = VK_TRUE;
+	}
+
+	void Pipeline::disableBlending() {
+		m_colorBlendAttachment.blendEnable = VK_FALSE;
+	}
+
 	void Pipeline::enableDepthTest() {
 		m_depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;
 		m_depthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
@@ -1891,6 +1900,23 @@ namespace vk
 	void Pipeline::disableDepthTest() {
 		m_depthStencilStateCreateInfo.depthTestEnable = VK_FALSE;
 		m_depthStencilStateCreateInfo.depthWriteEnable = VK_FALSE;
+	}
+
+	void Pipeline::enableStencilTest() {
+		m_depthStencilStateCreateInfo.stencilTestEnable = VK_TRUE;
+	}
+
+	void Pipeline::disableStencilTest() {
+		m_depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
+	}
+
+	void Pipeline::setStencilOpStates(VkStencilOpState front, VkStencilOpState back) {
+		m_depthStencilStateCreateInfo.front = front;
+		m_depthStencilStateCreateInfo.back = back;
+	}
+
+	void Pipeline::setStencilOpStates(VkStencilOpState opState) {
+		setStencilOpStates(opState, opState);
 	}
 
 	VkInstance getInstance() {
@@ -2022,7 +2048,7 @@ namespace vk
 		vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
 			&buildGeometryInfo, &m_buildRangeInfoVector[0].primitiveCount, &sizeInfo);
 
-		if (sizeInfo.accelerationStructureSize != m_buffer.getSize()) {
+		//if (sizeInfo.accelerationStructureSize != m_buffer.getSize()) {
 			m_buffer.resize(sizeInfo.accelerationStructureSize);
 
 			vkDestroyAccelerationStructureKHR(device, m_accelerationStructure, nullptr);
@@ -2042,7 +2068,7 @@ namespace vk
 			buildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
 			buildGeometryInfo.srcAccelerationStructure = VK_NULL_HANDLE;
 			buildGeometryInfo.dstAccelerationStructure = m_accelerationStructure;
-		}
+		//}
 
 		Buffer scratchBuffer = Buffer(sizeInfo.buildScratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 		scratchBuffer.init(); scratchBuffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);

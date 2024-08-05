@@ -293,7 +293,9 @@ namespace vk
 
 		void setUsage(VkImageUsageFlags usage) { m_usage = usage; }
 
-		void setInitialLayout(VkImageLayout layout) { m_currentLayout = layout; }
+		void setLayout(VkImageLayout layout) { m_currentLayout = layout; }
+
+		void setAccess(VkAccessFlags access) { m_accessMask = access; }
 
 		void setExtent(uint32_t width, uint32_t height, uint32_t depth) { m_extent = { width, height, depth }; }
 		void setExtent(VkExtent3D extent) { m_extent = extent; }
@@ -322,6 +324,8 @@ namespace vk
 		uint32_t getMipLevelCount() const { return m_mipLevelCount; }
 
 		VkExtent3D getExtent() const { return m_extent; }
+
+		VkFormat getFormat() const { return m_format; }
 
 		// Static
 		static void copyBufferToImage(vk::Image* dst, vk::Buffer* src, VkDeviceSize size);
@@ -568,6 +572,8 @@ namespace vk
 
 		void init();
 
+		void destroy();
+
 		void setStage(VkShaderStageFlagBits stage) { m_shaderStage.stage = stage; }
 		VkPipelineShaderStageCreateInfo getShaderStage() { return m_shaderStage; }
 
@@ -597,6 +603,8 @@ namespace vk
 		operator VkRenderPass() { return m_renderPass; }
 
 		void init();
+
+		void destroy();
 
 		void addAttachmentDescription(const VkAttachmentDescription& description);
 
@@ -669,6 +677,8 @@ namespace vk
 
 		void init();
 
+		void destroy();
+
 		void addShader(const VkPipelineShaderStageCreateInfo& shaderStage);
 
 		void delShader(int index);
@@ -704,9 +714,22 @@ namespace vk
 		void setRenderPass(VkRenderPass renderPass) { m_renderPass = renderPass; }
 		void setRenderPass(vk::RenderPass& renderPass) { setRenderPass(renderPass.getVkRenderPass()); }
 
+		void setSubpassIndex(uint32_t subpassIndex) { m_subpassIndex = subpassIndex; }
+
+		void enableBlending();
+
+		void disableBlending();
+
 		void enableDepthTest();
 
 		void disableDepthTest();
+
+		void enableStencilTest();
+
+		void disableStencilTest();
+
+		void setStencilOpStates(VkStencilOpState front, VkStencilOpState back);
+		void setStencilOpStates(VkStencilOpState opState);
 
 		VkPipeline getVkPipeline() { return m_pipeline; }
 
@@ -719,6 +742,7 @@ namespace vk
 		VkPipelineLayout m_pipelineLayout;
 
 		VkRenderPass m_renderPass;
+		uint32_t m_subpassIndex = 0;
 		std::vector<VkDescriptorSetLayout> m_setLayouts;
 		std::vector<VkPipelineShaderStageCreateInfo> m_shaderStages;
 		std::vector<VkVertexInputBindingDescription> m_vertexInputBindingDescriptions;
