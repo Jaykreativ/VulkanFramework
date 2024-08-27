@@ -217,7 +217,9 @@ namespace vk
 		void uploadData(vk::Buffer* buffer);
 		void uploadData(uint32_t size, void* data);
 
-		void setUsage(VkBufferUsageFlags usage) { m_usage = usage; }
+		void setUsage(VkBufferUsageFlags usage);
+
+		void setMemoryProperties(VkMemoryPropertyFlags memoryPropertyFlags);
 
 		void setSize(VkDeviceSize size);
 
@@ -240,6 +242,14 @@ namespace vk
 	private:
 		bool m_isInit = false;
 		bool m_isAlloc = false;
+
+		enum BufferChangesFlags {
+			eNONE = 0x0,
+			eGENERAL = 0x1,
+			eRESIZE = 0x2,
+			eRESIZE_FROM_ZERO = 0x4
+		};
+		uint32_t m_changes = eNONE;
 
 		VkBuffer m_buffer = VK_NULL_HANDLE;
 		VkDeviceMemory m_deviceMemory = VK_NULL_HANDLE;
@@ -715,6 +725,8 @@ namespace vk
 		void setRenderPass(vk::RenderPass& renderPass) { setRenderPass(renderPass.getVkRenderPass()); }
 
 		void setSubpassIndex(uint32_t subpassIndex) { m_subpassIndex = subpassIndex; }
+
+		void setPrimitiveTopology(VkPrimitiveTopology primitiveTopology) { m_inputAssemblyStateCreateInfo.topology = primitiveTopology; }
 
 		void enableBlending();
 

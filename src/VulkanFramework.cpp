@@ -505,6 +505,9 @@ namespace vk
 			return;
 		m_isInit = true;
 
+		if (m_size == 0)
+			return;
+
 		VkBufferCreateInfo createInfo;
 		createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		createInfo.pNext = nullptr;
@@ -546,11 +549,15 @@ namespace vk
 	}
 
 	void Buffer::update() {
-		if (m_isAlloc)
-			vkFreeMemory(vk::device, m_deviceMemory, nullptr);
-		if (m_isInit)
-			vkDestroyBuffer(vk::device, m_buffer, nullptr);
+		if (m_changes == eNONE)
+			return;
 
+		bool resizeFromZero = VK_IS_FLAG_ENABLED(m_changes, eRESIZE_FROM_ZERO);
+		if (m_isAlloc && !resizeFromZero)
+			vkFreeMemory(vk::device, m_deviceMemory, nullptr);
+		if (m_isInit && !resizeFromZero)
+			vkDestroyBuffer(vk::device, m_buffer, nullptr);
+		
 		if (!m_isInit)
 			return;
 		VkBufferCreateInfo createInfo;
@@ -587,14 +594,20 @@ namespace vk
 
 		vkBindBufferMemory(vk::device, m_buffer, m_deviceMemory, 0);
 
+		m_changes = eNONE;
+
 		Registerable::update();
 	}
 
 	void Buffer::allocate(VkMemoryPropertyFlags memoryPropertyFlags)
 	{
+		m_memoryPropertyFlags = memoryPropertyFlags;
 		if (m_isAlloc)
 			return;
 		m_isAlloc = true;
+
+		if (m_size == 0)
+			return;
 
 		VkMemoryRequirements memoryRequirements;
 		vkGetBufferMemoryRequirements(vk::device, m_buffer, &memoryRequirements);
@@ -611,7 +624,6 @@ namespace vk
 			allocateInfo.pNext = &memoryAllocateFlagsInfo;
 		}
 
-		m_memoryPropertyFlags = memoryPropertyFlags;
 		VkResult result = vkAllocateMemory(vk::device, &allocateInfo, nullptr, &m_deviceMemory);
 		VK_ASSERT(result);
 
@@ -620,7 +632,10 @@ namespace vk
 
 	void Buffer::resize(VkDeviceSize size) {
 		if (m_size == size) return;
+		if (m_size == 0)
+			m_changes |= eRESIZE_FROM_ZERO;
 		m_size = size;
+		m_changes |= eRESIZE;
 		update();
 	}
 
@@ -670,8 +685,22 @@ namespace vk
 		stagingBuffer.destroy();
 	}
 
+	void Buffer::setUsage(VkBufferUsageFlags usage) {
+		m_usage = usage;
+		m_changes |= eGENERAL;
+	}
+
+	void Buffer::setMemoryProperties(VkMemoryPropertyFlags memoryPropertyFlags) {
+		m_memoryPropertyFlags = memoryPropertyFlags;
+		m_changes |= eGENERAL;
+	}
+
 	void Buffer::setSize(VkDeviceSize size) {
+		if (m_size == size) return;
+		if (m_size == 0)
+			m_changes |= eRESIZE_FROM_ZERO;
 		m_size = size;
+		m_changes |= eRESIZE;
 	}
 
 	VkDeviceAddress Buffer::getVkDeviceAddress() const {
