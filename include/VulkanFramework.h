@@ -340,7 +340,7 @@ namespace vk
 		// Static
 		static void copyBufferToImage(vk::Image* dst, vk::Buffer* src, VkDeviceSize size);
 
-	private:
+	protected:
 		bool m_isInit = false;
 		bool m_isAlloc = false;
 		bool m_isViewInit = false;
@@ -349,6 +349,7 @@ namespace vk
 		VkDeviceMemory m_deviceMemory = VK_NULL_HANDLE;
 		VkImageView m_imageView = VK_NULL_HANDLE;
 
+	private:
 		VkImageType m_type = VK_IMAGE_TYPE_2D;
 		VkImageViewType m_viewType = VK_IMAGE_VIEW_TYPE_2D;
 		VkFormat m_format = VK_USED_SCREENCOLOR_FORMAT;
