@@ -243,7 +243,7 @@ namespace vk
 		bool m_isInit = false;
 		bool m_isAlloc = false;
 
-		enum BufferChangesFlags {
+		enum BufferChangeFlags {
 			eNONE = 0x0,
 			eGENERAL = 0x1,
 			eRESIZE = 0x2,
@@ -537,6 +537,14 @@ namespace vk
 		VkDescriptorSetLayout getVkDescriptorSetLayout() const { return m_descriptorSetLayout; }
 
 	private:
+		enum DescriptorSetChangeFlags {
+			eNONE = 0x0,
+			eDESCRIPTORS = 0x1,
+			eDESCRIPTOR_COUNT = 0x2,
+			eDESCRIPTOR_POOL = 0x4
+		};
+		uint32_t m_changes = eNONE;
+
 		VkDescriptorSet m_descriptorSet = VK_NULL_HANDLE;
 		VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
 
@@ -560,12 +568,19 @@ namespace vk
 
 		void destroy();
 
+		// adds the necessary pool sizes for the given descriptorSet
+		// use addPoolSize and setMaxSets for variable sizes
 		void addDescriptorSet(DescriptorSet& descriptorSet);
 
+		// sets the max amount of sets for this pool
 		void setMaxSets(uint32_t maxSets);
 
-		void addPoolSize(VkDescriptorPoolSize poolSize);
+		// gets the max amount of sets for this pool
+		size_t getMaxSets();
+
+		// a poolSize describes the type and the amount of descriptors to allocate in the pool
 		void addPoolSize(VkDescriptorType type, uint32_t count);
+		void addPoolSize(VkDescriptorPoolSize poolSize);
 		void addPoolSizes(VkDescriptorPoolSize* poolSize, uint32_t poolSizeCount);
 
 	private:
@@ -688,6 +703,8 @@ namespace vk
 
 		void init();
 
+		void update();
+
 		void destroy();
 
 		void addShader(const VkPipelineShaderStageCreateInfo& shaderStage);
@@ -703,6 +720,8 @@ namespace vk
 		void delVertexInputAttrubuteDescription(int index);
 
 		void addDescriptorSetLayout(VkDescriptorSetLayout setLayout) { m_setLayouts.push_back(setLayout); }
+
+		void setDescriptorSetLayout(int index, VkDescriptorSetLayout setLayout) { m_setLayouts[index] = setLayout; }
 
 		void delDescriptorSetLayout(int index) { m_setLayouts.erase(m_setLayouts.begin()+index); }
 
@@ -821,6 +840,8 @@ namespace vk
 
 		void initShaderBindingTable();
 
+		void update();
+
 		void destroy();
 
 		void addShader(const VkPipelineShaderStageCreateInfo& shaderStage);
@@ -832,6 +853,8 @@ namespace vk
 		void delGroup(uint32_t index);
 
 		void addDescriptorSetLayout(VkDescriptorSetLayout setLayout);
+
+		void setDescriptorSetLayout(int index, VkDescriptorSetLayout setLayout);
 
 		void delDescriptorSetLayout(int index);
 

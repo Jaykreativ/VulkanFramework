@@ -1153,11 +1153,13 @@ namespace vk
 			binding.stageFlags = descriptor.stages;
 			binding.pImmutableSamplers = nullptr;
 		}
-		createInfo.pBindings = pBindings; 
+		createInfo.pBindings = pBindings;
 
 		vkCreateDescriptorSetLayout(device, &createInfo, nullptr, &m_descriptorSetLayout);
 
 		delete[] pBindings;
+
+		m_changes = eDESCRIPTORS;
 
 		Registerable::init();
 	}
@@ -1180,12 +1182,18 @@ namespace vk
 	}
 
 	void DescriptorSet::update() {
-		const uint32_t writeCount = m_descriptors.size();
-		VkWriteDescriptorSet* pWrites = new VkWriteDescriptorSet[writeCount];
+		if (VK_IS_FLAG_ENABLED(m_changes, eDESCRIPTOR_COUNT) || VK_IS_FLAG_ENABLED(m_changes, eDESCRIPTOR_POOL)) {
+			destroy();
+			init();
+			allocate();
+		}
 
-		for (uint32_t i = 0; i < writeCount; i++) {
-			auto& write = pWrites[i];
-			auto& descriptor = m_descriptors[i];
+		std::vector<VkWriteDescriptorSet> writes = {};
+		for (auto& descriptor : m_descriptors) {
+			if (descriptor.count <= 0) continue;
+
+			writes.push_back({});
+			auto& write = writes.back();
 			write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			write.pNext = descriptor.pNext;
 			write.dstSet = m_descriptorSet;
@@ -1223,21 +1231,23 @@ namespace vk
 				pTexelBufferView = descriptor.texelBufferViews.data();
 			}
 			write.pTexelBufferView = pTexelBufferView;
-	}
-
-		vkUpdateDescriptorSets(device, writeCount, pWrites, 0, nullptr);
-
-		for (uint32_t i = 0; i < writeCount; i++) {
-			if (pWrites[i].pBufferInfo)
-				delete pWrites[i].pBufferInfo;
-
-			if (pWrites[i].pImageInfo)
-				delete pWrites[i].pImageInfo;
-
-			if (pWrites[i].pTexelBufferView)
-				delete pWrites[i].pTexelBufferView;
 		}
-		delete[] pWrites;
+
+		if(writes.size() > 0)
+			vkUpdateDescriptorSets(device, writes.size(), writes.data(), 0, nullptr);
+
+		for (auto& write : writes) {
+			if (write.pBufferInfo)
+				delete write.pBufferInfo;
+
+			if (write.pImageInfo)
+				delete write.pImageInfo;
+
+			if (write.pTexelBufferView)
+				delete write.pTexelBufferView;
+		}
+
+		m_changes = eNONE;
 
 		Registerable::update();
 	}
@@ -1254,23 +1264,32 @@ namespace vk
 
 	void DescriptorSet::addDescriptor(Descriptor descriptor) {
 		m_descriptors.push_back(descriptor);
+		m_changes |= eDESCRIPTOR_COUNT;
+		m_changes |= eDESCRIPTORS;
 	}
 
 	void DescriptorSet::eraseDescriptor(uint32_t index) {
 		m_descriptors.erase(m_descriptors.begin()+index);
+		m_changes |= eDESCRIPTOR_COUNT;
 	}
-
+	 
 	void DescriptorSet::eraseDescriptors(uint32_t offset, uint32_t range) {
 		m_descriptors.erase(m_descriptors.begin() + offset, m_descriptors.begin() + offset + range);
+		m_changes |= eDESCRIPTOR_COUNT;
 	}
 
 	void DescriptorSet::setDescriptor(uint32_t index, Descriptor descriptor) {
+		auto oldCount = m_descriptors[index].count;
 		m_descriptors[index] = descriptor;
-		}
+		if(oldCount != descriptor.count)
+			m_changes |= eDESCRIPTOR_COUNT;
+		m_changes |= eDESCRIPTORS;
+	}
 
 	void DescriptorSet::setDescriptorPool(const DescriptorPool* pDescriptorPool) {
 		m_pDescriptorPool = pDescriptorPool;
-		}
+		m_changes |= eDESCRIPTOR_POOL;
+	}
 
 	Descriptor DescriptorSet::getDescriptor(uint32_t index) {
 		return m_descriptors[index];
@@ -1304,17 +1323,7 @@ namespace vk
 	void DescriptorPool::addDescriptorSet(DescriptorSet& descriptorSet) {
 		m_maxSets++;
 		for (Descriptor descriptor : descriptorSet.m_descriptors) {
-			bool typeExists = false;
-			for (VkDescriptorPoolSize& poolSize : m_poolSizes) {
-				if (descriptor.type == poolSize.type) {
-					poolSize.descriptorCount += descriptor.count;
-					typeExists = true;
-					break;
-				}
-			}
-			if (!typeExists) {
-				m_poolSizes.push_back({descriptor.type, descriptor.count});
-			}
+			addPoolSize(descriptor.type, descriptor.count);
 		}
 		descriptorSet.m_pDescriptorPool = this;
 	}
@@ -1323,17 +1332,31 @@ namespace vk
 		m_maxSets = maxSets;
 	}
 
-	void DescriptorPool::addPoolSize(VkDescriptorPoolSize poolSize) {
-		m_poolSizes.push_back(poolSize);
+	size_t DescriptorPool::getMaxSets() {
+		return m_maxSets;
 	}
+
 	void DescriptorPool::addPoolSize(VkDescriptorType type, uint32_t count) {
-		m_poolSizes.push_back({type, count});
+		if (count <= 0) return;
+		bool typeExists = false;
+		for (VkDescriptorPoolSize& poolSize : m_poolSizes) {
+			if (type == poolSize.type) {
+				poolSize.descriptorCount += count;
+				typeExists = true;
+				break;
+			}
+		}
+		if (!typeExists) {
+			m_poolSizes.push_back({ type, count });
+		}
+	}
+	void DescriptorPool::addPoolSize(VkDescriptorPoolSize poolSize) {
+		addPoolSize(poolSize.type, poolSize.descriptorCount);
 	}
 	void DescriptorPool::addPoolSizes(VkDescriptorPoolSize* poolSizes, uint32_t poolSizeCount) {
 		if (!poolSizes || poolSizeCount <= 0) return;
-		auto oldSize = m_poolSizes.size();
-		m_poolSizes.resize(m_poolSizes.size() + poolSizeCount);
-		memcpy(&m_poolSizes[oldSize], poolSizes, sizeof(VkDescriptorPoolSize)*poolSizeCount);
+		for (uint32_t i = 0; i < poolSizeCount; i++)
+			addPoolSize(poolSizes[i]);
 	}
 
 	//void descriptorPoolCreate(
@@ -1854,6 +1877,11 @@ namespace vk
 		VK_ASSERT(result);
 	}
 
+	void Pipeline::update() {
+		destroy();
+		init();
+	}
+
 	void Pipeline::destroy() {
 		if (!m_isInit)
 			return;
@@ -2317,6 +2345,12 @@ namespace vk
 		m_rtSBTBuffer.unmap();
 	}
 
+	void RtPipeline::update() {
+		destroy();
+		init();
+		initShaderBindingTable();
+	}
+
 	void RtPipeline::destroy() {
 		m_rtSBTBuffer.destroy();
 		vkDestroyPipelineLayout(device, m_pipelineLayout, nullptr);
@@ -2341,6 +2375,10 @@ namespace vk
 
 	void RtPipeline::addDescriptorSetLayout(VkDescriptorSetLayout setLayout){
 		m_descriptorSetLayouts.push_back(setLayout);
+	}
+
+	void RtPipeline::setDescriptorSetLayout(int index, VkDescriptorSetLayout setLayout) {
+		m_descriptorSetLayouts[index] = setLayout;
 	}
 
 	void RtPipeline::delDescriptorSetLayout(int index){
