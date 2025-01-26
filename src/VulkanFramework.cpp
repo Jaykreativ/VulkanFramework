@@ -539,12 +539,14 @@ namespace vk
 		{
 			m_isAlloc = false;
 			vkFreeMemory(vk::device, m_deviceMemory, nullptr);
+			m_deviceMemory == VK_NULL_HANDLE;
 		}
 
 		if (m_isInit)
 		{
 			m_isInit = false;
 			vkDestroyBuffer(vk::device, m_buffer, nullptr);
+			m_buffer = VK_NULL_HANDLE;
 		}
 	}
 
@@ -553,46 +555,50 @@ namespace vk
 			return;
 
 		bool resizeFromZero = VK_IS_FLAG_ENABLED(m_changes, eRESIZE_FROM_ZERO);
-		if (m_isAlloc && !resizeFromZero)
+		if (m_isAlloc && !resizeFromZero) {
 			vkFreeMemory(vk::device, m_deviceMemory, nullptr);
-		if (m_isInit && !resizeFromZero)
-			vkDestroyBuffer(vk::device, m_buffer, nullptr);
-		
-		if (!m_isInit)
-			return;
-		VkBufferCreateInfo createInfo;
-		createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		createInfo.pNext = nullptr;
-		createInfo.flags = 0;
-		createInfo.size = m_size;
-		createInfo.usage = m_usage;
-		createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		createInfo.queueFamilyIndexCount = 0;
-		createInfo.pQueueFamilyIndices = nullptr;
-
-		VkResult result = vkCreateBuffer(vk::device, &createInfo, nullptr, &m_buffer);
-		VK_ASSERT(result);
-
-		if (!m_isAlloc)
-			return;
-		VkMemoryRequirements memoryRequirements;
-		vkGetBufferMemoryRequirements(vk::device, m_buffer, &memoryRequirements);
-
-		VkMemoryAllocateInfo allocateInfo;
-		allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocateInfo.pNext = nullptr;
-		allocateInfo.allocationSize = memoryRequirements.size;
-		allocateInfo.memoryTypeIndex = vkUtils::findMemoryTypeIndex(vk::physicalDevice, memoryRequirements.memoryTypeBits, m_memoryPropertyFlags);
-
-		VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO };
-		if (VK_IS_FLAG_ENABLED(m_usage, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)) {
-			memoryAllocateFlagsInfo.flags |= VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
-			allocateInfo.pNext = &memoryAllocateFlagsInfo;
+			m_deviceMemory = VK_NULL_HANDLE;
 		}
-		result = vkAllocateMemory(vk::device, &allocateInfo, nullptr, &m_deviceMemory);
-		VK_ASSERT(result);
+		if (m_isInit && !resizeFromZero) {
+			vkDestroyBuffer(vk::device, m_buffer, nullptr);
+			m_buffer = VK_NULL_HANDLE;
+		}
+		
+		if (m_isInit && m_size > 0) {
+			VkBufferCreateInfo createInfo;
+			createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			createInfo.pNext = nullptr;
+			createInfo.flags = 0;
+			createInfo.size = m_size;
+			createInfo.usage = m_usage;
+			createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+			createInfo.queueFamilyIndexCount = 0;
+			createInfo.pQueueFamilyIndices = nullptr;
 
-		vkBindBufferMemory(vk::device, m_buffer, m_deviceMemory, 0);
+			VkResult result = vkCreateBuffer(vk::device, &createInfo, nullptr, &m_buffer);
+			VK_ASSERT(result);
+
+			if (!m_isAlloc)
+				return;
+			VkMemoryRequirements memoryRequirements;
+			vkGetBufferMemoryRequirements(vk::device, m_buffer, &memoryRequirements);
+
+			VkMemoryAllocateInfo allocateInfo;
+			allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+			allocateInfo.pNext = nullptr;
+			allocateInfo.allocationSize = memoryRequirements.size;
+			allocateInfo.memoryTypeIndex = vkUtils::findMemoryTypeIndex(vk::physicalDevice, memoryRequirements.memoryTypeBits, m_memoryPropertyFlags);
+
+			VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO };
+			if (VK_IS_FLAG_ENABLED(m_usage, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)) {
+				memoryAllocateFlagsInfo.flags |= VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+				allocateInfo.pNext = &memoryAllocateFlagsInfo;
+			}
+			result = vkAllocateMemory(vk::device, &allocateInfo, nullptr, &m_deviceMemory);
+			VK_ASSERT(result);
+
+			vkBindBufferMemory(vk::device, m_buffer, m_deviceMemory, 0);
+		}
 
 		m_changes = eNONE;
 
@@ -1137,6 +1143,10 @@ namespace vk
 	}
 
 	void DescriptorSet::init() {
+		if (m_isInit)
+			return;
+		m_isInit = true;
+
 		VkDescriptorSetLayoutCreateInfo createInfo;
 		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 		createInfo.pNext = nullptr;
@@ -1165,6 +1175,10 @@ namespace vk
 	}
 
 	void DescriptorSet::allocate() {
+		if (m_isAlloc)
+			return;
+		m_isAlloc = true;
+
 		if (!m_pDescriptorPool) {
 			std::cerr << "ERROR: Invalid DescriptorPool: set has to be part of a DescriptorPool to be allocated | DescriptorPool: " << m_pDescriptorPool << "\n";
 			throw std::runtime_error("Invalid Descriptor Pool");
@@ -1182,6 +1196,9 @@ namespace vk
 	}
 
 	void DescriptorSet::update() {
+		if (!m_isInit || !m_isAlloc)
+			return;
+
 		if (VK_IS_FLAG_ENABLED(m_changes, eDESCRIPTOR_COUNT) || VK_IS_FLAG_ENABLED(m_changes, eDESCRIPTOR_POOL)) {
 			destroy();
 			init();
@@ -1220,10 +1237,16 @@ namespace vk
 				pBufferInfo = new VkDescriptorBufferInfo[descriptor.count]{};
 				for (uint32_t j = 0; j < descriptor.count; j++) {
 					pBufferInfo[j].buffer = *descriptor.bufferInfos[j].pBuffer;
-					pBufferInfo[j].offset = descriptor.bufferInfos[j].offset;
-					pBufferInfo[j].range = descriptor.bufferInfos[j].range;
+					if (pBufferInfo[j].buffer == VK_NULL_HANDLE) {
+						pBufferInfo[j].offset = 0;
+						pBufferInfo[j].range = VK_WHOLE_SIZE;
+					}
+					else {
+						pBufferInfo[j].offset = descriptor.bufferInfos[j].offset;
+						pBufferInfo[j].range = descriptor.bufferInfos[j].range;
+					}
 				}
-		}
+			}
 			write.pBufferInfo = pBufferInfo;
 
 			VkBufferView* pTexelBufferView = nullptr;
@@ -1233,7 +1256,7 @@ namespace vk
 			write.pTexelBufferView = pTexelBufferView;
 		}
 
-		if(writes.size() > 0)
+		if (writes.size() > 0)
 			vkUpdateDescriptorSets(device, writes.size(), writes.data(), 0, nullptr);
 
 		for (auto& write : writes) {
@@ -1255,12 +1278,22 @@ namespace vk
 	void DescriptorSet::destroy() {
 		Registerable::destroy();
 
-		vkDestroyDescriptorSetLayout(device, m_descriptorSetLayout, nullptr);
+		free();
+		
+		if (m_isInit) {
+			m_isInit = false;
+			vkDestroyDescriptorSetLayout(device, m_descriptorSetLayout, nullptr);
+			m_descriptorSetLayout = VK_NULL_HANDLE;
+		}
 	}
 
 	void DescriptorSet::free() {
-		vkFreeDescriptorSets(device, *m_pDescriptorPool, 1, &m_descriptorSet);
+		if (m_isAlloc) {
+			m_isAlloc = false;
+			//vkFreeDescriptorSets(device, *m_pDescriptorPool, 1, &m_descriptorSet); TODO free descriptorSet for optimized descriptorPools
+			m_descriptorSet = VK_NULL_HANDLE;
 		}
+	}
 
 	void DescriptorSet::addDescriptor(Descriptor descriptor) {
 		m_descriptors.push_back(descriptor);
@@ -2090,6 +2123,9 @@ namespace vk
 	}
 
 	void AccelerationStructure::update() {
+		if (m_geometryVector.empty())
+			return;
+
 		VkAccelerationStructureBuildGeometryInfoKHR buildGeometryInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
 		buildGeometryInfo.pNext = nullptr;
 		buildGeometryInfo.type = m_type;
@@ -2147,6 +2183,8 @@ namespace vk
 
 	void AccelerationStructure::setGeometry(std::vector<AccelerationStructureInstance>& instances) {
 		uint32_t countInstances = static_cast<uint32_t>(instances.size());
+		if (countInstances <= 0)
+			return;
 
 		if (countInstances * sizeof(AccelerationStructureInstance) != m_instancesBuffer.getSize())
 			m_instancesBuffer.resize(countInstances * sizeof(AccelerationStructureInstance));

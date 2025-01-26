@@ -537,6 +537,9 @@ namespace vk
 		VkDescriptorSetLayout getVkDescriptorSetLayout() const { return m_descriptorSetLayout; }
 
 	private:
+		bool m_isInit = false;
+		bool m_isAlloc = false;
+
 		enum DescriptorSetChangeFlags {
 			eNONE = 0x0,
 			eDESCRIPTORS = 0x1,
