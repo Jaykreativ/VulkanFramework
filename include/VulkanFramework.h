@@ -612,7 +612,11 @@ namespace vk
 
 		std::string getPath() { return m_path; }
 
+#ifdef GLSLANG_VALIDATOR
+		// compiles shaders and copies them into every dstDir
+		// GLSLANG_VALIDATOR has to be defined as the path to the glslangValidator.exe
 		static void compile(std::string srcDir, std::vector<std::string> srcNames, std::vector<std::string> dstDirs);
+#endif 
 
 	private:
 		bool m_isInit = false;

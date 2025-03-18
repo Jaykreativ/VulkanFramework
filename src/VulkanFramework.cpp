@@ -1650,16 +1650,19 @@ namespace vk
 		vkDestroyShaderModule(vk::device, m_module, nullptr);
 	}
 
+
+#ifdef GLSLANG_VALIDATOR
 	void Shader::compile(std::string srcDir, std::vector<std::string> srcNames, std::vector<std::string> dstDirs) {
 		for (auto srcName : srcNames) {
 			std::string dstName = srcName + ".spv";
 			std::string vulkanVersion = "vulkan1.3";
-			system(("%VULKAN_SDK%\\Bin\\glslangValidator.exe --target-env " + vulkanVersion + " -V100 " + srcDir + srcName + " -o " + dstDirs[0] + dstName).c_str());
+			system((GLSLANG_VALIDATOR " --target-env " + vulkanVersion + " -V100 " + srcDir + srcName + " -o " + dstDirs[0] + dstName).c_str());
 			for (int i = 1; i < dstDirs.size(); i++) {
 				system(("copy " + dstDirs[0] + dstName + " " + dstDirs[i]).c_str());
 			}
 		}
 	}
+#endif
 
 	/* RenderPass */
 	RenderPass::RenderPass(){}
