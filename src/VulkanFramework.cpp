@@ -1651,7 +1651,6 @@ namespace vk
 	}
 
 
-#ifdef GLSLANG_VALIDATOR
 	void Shader::compile(std::string srcDir, std::vector<std::string> srcNames, std::vector<std::string> dstDirs) {
 		for (auto srcName : srcNames) {
 			std::string dstName = srcName + ".spv";
@@ -1662,7 +1661,6 @@ namespace vk
 			}
 		}
 	}
-#endif
 
 	/* RenderPass */
 	RenderPass::RenderPass(){}
