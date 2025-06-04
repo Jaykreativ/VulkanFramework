@@ -144,7 +144,7 @@ namespace vk
 						objs.erase(objs.begin()+j);
 						if (objs.size() <= 0) {
 							m_registery->m_dependencyObjMap.erase(depPairs[i].first);
-	}
+						}
 					}
 				}
 			}
@@ -205,6 +205,8 @@ namespace vk
 	Registery::~Registery() {}
 
 	void Registery::connect(Registerable* obj, Registerable* dependency, RegisteryCallback callback) {
+		if (m_dependencyObjMap.count(dependency) && m_objConnectionMap.count(obj))
+			return;
 		obj->m_registery = this;
 		m_objConnectionMap[obj].push_back(std::pair<Registerable*, RegisteryCallback>(dependency, callback));
 		m_dependencyObjMap[dependency].push_back(obj);
