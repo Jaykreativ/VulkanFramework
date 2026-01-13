@@ -1051,6 +1051,7 @@ namespace vk
 		{
 			std::cerr << "VkPresentModeKHR: " << m_presentMode << " not supported, changed to VK_PRESENT_MODE_FIFO_KHR\n";
 			m_presentMode = VK_PRESENT_MODE_FIFO_KHR;
+			createInfo.presentMode = m_presentMode;
 		}
 
 		vkCreateSwapchainKHR(vk::device, &createInfo, nullptr, &m_swapchain);
