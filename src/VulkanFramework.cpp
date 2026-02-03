@@ -1338,7 +1338,7 @@ namespace vk
 	void DescriptorPool::init() {
 		VkDescriptorPoolCreateInfo createInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
 		createInfo.pNext = nullptr;
-		createInfo.flags = 0;
+		createInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 		createInfo.maxSets = m_maxSets;
 		createInfo.poolSizeCount = m_poolSizes.size();
 		createInfo.pPoolSizes = m_poolSizes.data();
