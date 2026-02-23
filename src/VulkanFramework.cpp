@@ -2079,7 +2079,7 @@ namespace vk
 		if (m_isInit) return;
 		m_isInit = true;
 
-		m_buffer = Buffer(1, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR);
+		m_buffer = Buffer(1, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 		m_buffer.init(); m_buffer.allocate(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		VkAccelerationStructureCreateInfoKHR createInfo;
